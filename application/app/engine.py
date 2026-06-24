@@ -66,7 +66,10 @@ class Transcriber:
         self.cfg = cfg
         self.blacklist = {s.strip().lower() for s in cfg["hallucination_blacklist"]}
 
-    def transcribe(self, audio, language):
+    def transcribe(self, audio, language, drop_no_speech=True):
+        """Распознаёт аудио. drop_no_speech=True (микрофон) отсеивает сегменты с высоким
+        no_speech_prob — это гасит галлюцинации на коротких диктовках. Для длинных/шумных
+        файлов (пение, музыка) передавай False, иначе куски «не-речи» режут текст."""
         lang = None if language in ("auto", "", None) else language
         segments, _info = self.model.transcribe(
             audio,
@@ -81,7 +84,7 @@ class Transcriber:
         parts = [
             seg.text
             for seg in segments
-            if seg.no_speech_prob is None or seg.no_speech_prob <= threshold
+            if not drop_no_speech or seg.no_speech_prob is None or seg.no_speech_prob <= threshold
         ]
         text = "".join(parts).strip()
         if text.lower() in self.blacklist:

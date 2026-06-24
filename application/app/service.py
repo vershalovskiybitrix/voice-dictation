@@ -158,7 +158,8 @@ class VoiceService:
         self.set_status(f"Файл: {name}")
         try:
             with self._infer_lock:
-                text = self.transcriber.transcribe(path, self.language)
+                # Для файлов не режем сегменты по no_speech (иначе песни/шум обрываются).
+                text = self.transcriber.transcribe(path, self.language, drop_no_speech=False)
         except Exception as e:
             log(f"Ошибка распознавания файла {name!r}: {e}")
             self._notify(f"Не удалось распознать: {name}")
