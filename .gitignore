@@ -1,0 +1,16 @@
+# Рабочее окружение (venv, config, логи, результаты) — машинно-зависимое
+runtime/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+# IDE / редакторы
+.vscode/
+.idea/
+.claude/
+
+# Логи и временные файлы
+*.log

@@ -1,0 +1,25 @@
+# Движок распознавания (Whisper на CTranslate2)
+faster-whisper>=1.1.0
+
+# Захват микрофона
+sounddevice>=0.4.6
+numpy>=1.24
+
+# Нужен для встроенного VAD (vad_filter=True) faster-whisper
+onnxruntime>=1.16
+
+# Глобальные хоткеи (down/up для push-to-talk) и отправка Ctrl+V
+pynput>=1.7.6
+
+# Буфер обмена (Unicode/кириллица)
+pyperclip>=1.8.2
+
+# Иконка и меню в системном трее
+pystray>=0.19.5
+pillow>=10.0
+
+# --- CUDA-библиотеки для GPU (NVIDIA, CUDA 12). ---
+# Нужны CTranslate2 для работы на GPU. Без GPU приложение само откатится на CPU.
+# Маркер исключает их на macOS (там NVIDIA-колёс нет).
+nvidia-cublas-cu12; platform_system != "Darwin"
+nvidia-cudnn-cu12; platform_system != "Darwin"
