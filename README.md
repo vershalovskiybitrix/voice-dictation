@@ -104,6 +104,10 @@ runtime\.venv\Scripts\python.exe application\tests\mic_test.py            # жи
 
 `Win+R` → `shell:startup` → положи туда ярлык на `application\run.bat`.
 
+## Лицензия
+
+[MIT](LICENSE) — пользуйтесь свободно (в т.ч. в коммерции), без гарантий.
+
 ## Что НЕ делается (и почему)
 
 - Нет голосовых команд-знаков препинания — Whisper сам ставит пунктуацию.
