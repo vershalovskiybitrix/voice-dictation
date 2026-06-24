@@ -1,12 +1,16 @@
 """Оркестрация: состояние записи, реакции на хоткеи, запуск трея."""
 
+import os
 import threading
 import time
 import winsound
 
+import pyperclip
+
 from .capture import Recorder
-from .config import load_config
+from .config import inbox_dir, load_config, save_config
 from .engine import Transcriber, load_model
+from .files import watch_inbox
 from .hotkeys import HotkeyManager
 from .output import Inserter
 from .util import log
@@ -23,6 +27,7 @@ class VoiceService:
         self.inserter = Inserter(cfg)
 
         self.language = cfg["language"]
+        self.file_insert = cfg["file_insert_at_cursor"]
         self.paused = False
         self.recording = False
         self.mode = None              # "ptt" | "toggle" | None
@@ -32,6 +37,7 @@ class VoiceService:
         self._record_start = 0.0
         self._beep_timer = None
         self._lock = threading.RLock()
+        self._infer_lock = threading.Lock()  # одно распознавание за раз (микрофон/файл) — щадим VRAM
 
     # ------------------------------------------------------------------ #
     #  Индикация
@@ -118,7 +124,8 @@ class VoiceService:
     def _process(self, audio):
         self.set_status("Transcribing")
         try:
-            text = self.transcriber.transcribe(audio, self.language)
+            with self._infer_lock:
+                text = self.transcriber.transcribe(audio, self.language)
         except Exception as e:
             log(f"Ошибка распознавания: {e}")
             self.set_status("Idle")
@@ -128,6 +135,49 @@ class VoiceService:
             self.inserter.insert(text)
         else:
             log("Пустой результат — ничего не вставлено.")
+        self.set_status("Idle")
+
+    # ------------------------------------------------------------------ #
+    #  Распознавание аудиофайлов
+    # ------------------------------------------------------------------ #
+    def _notify(self, message, title="VoiceService"):
+        try:
+            if self.tray is not None:
+                self.tray.notify(message, title)
+        except Exception:
+            pass
+
+    def set_file_insert(self, value):
+        self.file_insert = value
+        self.cfg["file_insert_at_cursor"] = value
+        save_config(self.cfg)
+
+    def handle_file(self, path):
+        """Распознаёт аудиофайл (любой источник) → буфер (+ опц. вставка) + уведомление."""
+        name = os.path.basename(path)
+        self.set_status(f"Файл: {name}")
+        try:
+            with self._infer_lock:
+                text = self.transcriber.transcribe(path, self.language)
+        except Exception as e:
+            log(f"Ошибка распознавания файла {name!r}: {e}")
+            self._notify(f"Не удалось распознать: {name}")
+            self.set_status("Idle")
+            return
+        if not text:
+            log(f"Файл {name!r}: пустой результат.")
+            self._notify(f"Речь не распознана: {name}")
+            self.set_status("Idle")
+            return
+        log(f"Файл {name!r} распознан: {text!r}")
+        try:
+            pyperclip.copy(text)
+        except Exception:
+            pass
+        if self.file_insert:
+            self.inserter.insert(text)
+        preview = text if len(text) <= 200 else text[:197] + "..."
+        self._notify(preview, f"Распознано: {name}")
         self.set_status("Idle")
 
     # ------------------------------------------------------------------ #
@@ -159,6 +209,13 @@ def run():
     hotkeys = HotkeyManager(cfg["ptt_key"], cfg["toggle_key"], service)
     threading.Thread(target=hotkeys.run, daemon=True).start()
     log(f"Готово. PTT: держать [{cfg['ptt_key']}] | Toggle: [{cfg['toggle_key']}]")
+
+    # Слежение за папкой-приёмником: бросил аудиофайл → распознался.
+    folder = inbox_dir(cfg)
+    keep = cfg.get("inbox_keep_processed", 20)
+    threading.Thread(
+        target=watch_inbox, args=(folder, service.handle_file, keep), daemon=True
+    ).start()
 
     from .tray import build_tray  # импорт здесь: pystray тянет GUI-зависимости
     icon = build_tray(service)

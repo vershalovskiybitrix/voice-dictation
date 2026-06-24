@@ -101,18 +101,21 @@ def test_config():
     check("ptt_key=ctrl_r", cfg["ptt_key"] == "ctrl_r")
     check("toggle_key=scroll_lock", cfg["toggle_key"] == "scroll_lock")
     check("есть ptt_beep_delay", "ptt_beep_delay" in cfg)
+    check("есть file_insert_at_cursor", "file_insert_at_cursor" in cfg)
+    check("есть inbox_keep_processed", "inbox_keep_processed" in cfg)
 
 
 def test_imports():
     print("test: импорт всех модулей")
-    import app.capture, app.engine, app.output, app.service, app.tray  # noqa
+    import app.capture, app.engine, app.files, app.output, app.service, app.tray  # noqa
     import sounddevice, pyperclip, pystray  # noqa
     from PIL import Image  # noqa
     check("все модули импортированы", True)
 
 
 def test_model():
-    print("test: загрузка модели + распознавание тишины")
+    print("test: загрузка модели + распознавание тишины и файла")
+    import os, tempfile, wave
     import numpy as np
     from app.engine import Transcriber, load_model
     cfg = dict(DEFAULT_CONFIG)
@@ -120,7 +123,17 @@ def test_model():
     model, device = load_model(cfg)
     tr = Transcriber(model, cfg)
     out = tr.transcribe(np.zeros(16000, dtype=np.float32), "auto")
-    check(f"модель на {device}, тишина -> пусто", out == "")
+    check(f"модель на {device}, тишина (массив) -> пусто", out == "")
+
+    # Распознавание ПО ПУТИ К ФАЙЛУ (тихий WAV) — проверяем тракт работы с файлами.
+    p = os.path.join(tempfile.gettempdir(), "vs_silent.wav")
+    with wave.open(p, "w") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(b"\x00\x00" * 16000)
+    out_file = tr.transcribe(p, "auto")
+    check("файл по пути -> пусто (без ошибок)", out_file == "")
 
 
 def main():

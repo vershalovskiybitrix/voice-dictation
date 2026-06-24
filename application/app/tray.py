@@ -1,7 +1,10 @@
 """Иконка и меню в системном трее."""
 
 import os
+import threading
 
+from .config import inbox_dir
+from .files import pick_audio_file
 from .util import log
 
 
@@ -33,6 +36,24 @@ def build_tray(service):
         service.paused = not service.paused
         service.set_status("Paused" if service.paused else "Idle")
 
+    def recognize_file(icon, item):
+        def _run():
+            path = pick_audio_file()
+            if path:
+                service.handle_file(path)
+        threading.Thread(target=_run, daemon=True).start()
+
+    def open_inbox(icon, item):
+        folder = inbox_dir(service.cfg)
+        os.makedirs(folder, exist_ok=True)
+        try:
+            os.startfile(folder)
+        except Exception as e:
+            log(f"Не удалось открыть папку: {e}")
+
+    def toggle_file_insert(icon, item):
+        service.set_file_insert(not service.file_insert)
+
     def do_quit(icon, item):
         icon.stop()
         os._exit(0)
@@ -43,6 +64,11 @@ def build_tray(service):
         Item("Язык: Авто", set_lang("auto"), checked=lang_checked("auto"), radio=True),
         Item("Язык: Русский", set_lang("ru"), checked=lang_checked("ru"), radio=True),
         Item("Язык: English", set_lang("en"), checked=lang_checked("en"), radio=True),
+        pystray.Menu.SEPARATOR,
+        Item("Распознать аудиофайл…", recognize_file),
+        Item("Открыть папку для распознавания", open_inbox),
+        Item("Вставлять результат файла в курсор", toggle_file_insert,
+             checked=lambda item: service.file_insert),
         pystray.Menu.SEPARATOR,
         Item("Пауза хоткеев", toggle_pause, checked=lambda item: service.paused),
         Item("Выход", do_quit),

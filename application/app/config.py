@@ -29,6 +29,15 @@ DEFAULT_CONFIG = {
     "ptt_beep_delay": 0.25,       # сек: задержка сигнала «пишу», чтобы не пищать на Ctrl-шорткаты
 
     "insert_method": "clipboard",  # clipboard | type
+
+    # Распознавание аудиофайлов (голосовые из мессенджеров и пр.).
+    #  file_insert_at_cursor — кроме буфера, вставлять результат файла в активное поле.
+    #  inbox_dirname         — папка-приёмник внутри runtime/ (бросил файл → распознался).
+    #  inbox_keep_processed  — сколько обработанных файлов хранить в inbox/done (0 — удалять сразу).
+    "file_insert_at_cursor": False,
+    "inbox_dirname": "inbox",
+    "inbox_keep_processed": 20,
+
     "beep": True,
     "min_record_seconds": 0.4,    # короче — игнор (защита от случайных нажатий)
     "no_speech_threshold": 0.6,   # сегменты с no_speech_prob выше — отбрасываем
@@ -70,3 +79,18 @@ def load_config():
         except Exception as e:
             log(f"Не удалось создать config.json: {e}")
     return cfg
+
+
+def save_config(cfg):
+    """Сохраняет конфиг в config.json (например, при смене настройки из трея)."""
+    try:
+        os.makedirs(RUNTIME_DIR, exist_ok=True)
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        log(f"Не удалось сохранить config.json: {e}")
+
+
+def inbox_dir(cfg):
+    """Путь к папке-приёмнику аудиофайлов (создаётся при обращении)."""
+    return os.path.join(RUNTIME_DIR, cfg.get("inbox_dirname", "inbox"))
