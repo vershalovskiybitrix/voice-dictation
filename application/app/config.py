@@ -33,7 +33,10 @@ DEFAULT_CONFIG = {
     "min_record_seconds": 0.4,    # короче — игнор (защита от случайных нажатий)
     "no_speech_threshold": 0.6,   # сегменты с no_speech_prob выше — отбрасываем
     "beam_size": 5,
-    "initial_prompt": "",         # словарь частых терминов/имён для точности
+    # Подсказка терминов: смещает распознавание к правильному написанию брендов/имён
+    # (иначе Whisper пишет «гитхаб», «уклада» вместо GitHub, Claude). Допиши свои слова.
+    "initial_prompt": "Часто встречаются слова: GitHub, Claude, Anthropic, ChatGPT, "
+                      "Python, Git, коммит, пуш, запушь, репозиторий, VoiceService, Whisper.",
     "hallucination_blacklist": [
         "продолжение следует...",
         "продолжение следует…",
