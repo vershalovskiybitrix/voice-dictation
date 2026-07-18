@@ -117,6 +117,20 @@ def test_toggle():
     check("два toggle", cb.events == ["toggle", "toggle"])
 
 
+def test_history():
+    print("test: история последних распознаваний")
+    import collections
+    from app.service import VoiceService
+    svc = VoiceService.__new__(VoiceService)          # без загрузки модели
+    svc.history = collections.deque(maxlen=10)
+    for i in range(13):
+        svc.remember(f"фраза {i}")
+    svc.remember("")                                   # пустое не запоминаем
+    check("хранит максимум 10", len(svc.history) == 10)
+    check("новые первыми", svc.history[0] == "фраза 12")
+    check("пустое не попало", "" not in svc.history)
+
+
 def test_config():
     print("test: конфиг")
     cfg = load_config()
@@ -166,6 +180,7 @@ def main():
     test_ptt_cancel_once()
     test_own_paste_does_not_cancel()
     test_toggle()
+    test_history()
     test_config()
     if "--model" in sys.argv:
         test_model()

@@ -1,5 +1,6 @@
 """Оркестрация: состояние записи, реакции на хоткеи, запуск трея."""
 
+import collections
 import os
 import threading
 import time
@@ -33,6 +34,8 @@ class VoiceService:
         self.mode = None              # "ptt" | "toggle" | None
         self.status = "Idle"
         self.tray = None
+        # Последние результаты (новые первыми) — доступны из трея, если текст не попал в поле.
+        self.history = collections.deque(maxlen=10)
 
         self._record_start = 0.0
         self._beep_timer = None
@@ -132,6 +135,7 @@ class VoiceService:
             return
         if text:
             log(f"Распознано: {text!r}")
+            self.remember(text)
             self.inserter.insert(text)
         else:
             log("Пустой результат — ничего не вставлено.")
@@ -170,6 +174,7 @@ class VoiceService:
             self.set_status("Idle")
             return
         log(f"Файл {name!r} распознан: {text!r}")
+        self.remember(text)
         try:
             pyperclip.copy(text)
         except Exception:
@@ -183,6 +188,11 @@ class VoiceService:
     # ------------------------------------------------------------------ #
     #  Колбэки HotkeyManager
     # ------------------------------------------------------------------ #
+    def remember(self, text):
+        """Кладёт результат в историю (новые первыми)."""
+        if text:
+            self.history.appendleft(text)
+
     def ignore_keys(self):
         """Игнорировать клавиши, пока сами шлём Ctrl+V (иначе отменим свою же диктовку)."""
         return self.inserter.busy

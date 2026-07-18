@@ -3,6 +3,8 @@
 import os
 import threading
 
+import pyperclip
+
 from .config import inbox_dir
 from .files import pick_audio_file
 from .util import log
@@ -54,6 +56,25 @@ def build_tray(service):
     def toggle_file_insert(icon, item):
         service.set_file_insert(not service.file_insert)
 
+    def copy_text(text):
+        def _copy(icon, item):
+            try:
+                pyperclip.copy(text)
+            except Exception as e:
+                log(f"Не удалось скопировать в буфер: {e}")
+        return _copy
+
+    def history_items():
+        if not service.history:
+            return [Item("(пусто)", None, enabled=False)]
+        items = []
+        for text in service.history:
+            preview = " ".join(text.split())
+            if len(preview) > 60:
+                preview = preview[:57] + "..."
+            items.append(Item(preview, copy_text(text)))
+        return items
+
     def do_quit(icon, item):
         icon.stop()
         os._exit(0)
@@ -64,6 +85,8 @@ def build_tray(service):
         Item("Язык: Авто", set_lang("auto"), checked=lang_checked("auto"), radio=True),
         Item("Язык: Русский", set_lang("ru"), checked=lang_checked("ru"), radio=True),
         Item("Язык: English", set_lang("en"), checked=lang_checked("en"), radio=True),
+        pystray.Menu.SEPARATOR,
+        Item("Последние распознавания (клик — в буфер)", pystray.Menu(history_items)),
         pystray.Menu.SEPARATOR,
         Item("Распознать аудиофайл…", recognize_file),
         Item("Открыть папку для распознавания", open_inbox),

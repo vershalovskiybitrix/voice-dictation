@@ -27,19 +27,11 @@ class Inserter:
         if self.cfg["insert_method"] == "type":
             self.kb.type(text)
             return
-        # Буфер обмена + Ctrl+V с восстановлением прежнего содержимого.
-        try:
-            old = pyperclip.paste()
-        except Exception:
-            old = None
+        # Буфер обмена + Ctrl+V. Прежнее содержимое НЕ восстанавливаем намеренно:
+        # иначе при потере фокуса (свернулось окно, всплыло окно) текст стирался и
+        # пропадал совсем. Теперь он остаётся в буфере — доступен повторным Ctrl+V и в Win+V.
         pyperclip.copy(text)
         time.sleep(0.03)
         with self.kb.pressed(keyboard.Key.ctrl):
             self.kb.press("v")
             self.kb.release("v")
-        if old is not None:
-            time.sleep(0.15)
-            try:
-                pyperclip.copy(old)
-            except Exception:
-                pass
