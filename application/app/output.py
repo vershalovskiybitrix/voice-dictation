@@ -12,8 +12,18 @@ class Inserter:
     def __init__(self, cfg):
         self.cfg = cfg
         self.kb = keyboard.Controller()
+        # True, пока шлём синтетические нажатия — чтобы слушатель хоткеев не принял
+        # наш собственный Ctrl+V за «другую клавишу» и не отменил новую диктовку.
+        self.busy = False
 
     def insert(self, text):
+        self.busy = True
+        try:
+            self._insert(text)
+        finally:
+            self.busy = False
+
+    def _insert(self, text):
         if self.cfg["insert_method"] == "type":
             self.kb.type(text)
             return

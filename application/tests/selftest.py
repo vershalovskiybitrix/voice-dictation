@@ -23,16 +23,19 @@ from app.hotkeys import HotkeyManager, key_to_name
 class FakeCallbacks:
     def __init__(self):
         self.events = []
+        self.ignore = False
 
     def on_ptt_start(self):  self.events.append("start")
     def on_ptt_commit(self): self.events.append("commit")
     def on_ptt_cancel(self): self.events.append("cancel")
     def on_toggle(self):     self.events.append("toggle")
+    def ignore_keys(self):   return self.ignore
 
 
 CTRL_R = keyboard.Key.ctrl_r
 SCROLL = keyboard.Key.scroll_lock
 KEY_A = keyboard.KeyCode.from_char("a")
+KEY_V = keyboard.KeyCode.from_char("v")
 KEY_HOME = keyboard.Key.home
 
 
@@ -83,6 +86,25 @@ def test_ptt_cancel_once():
     mgr.on_release(CTRL_R)
     check("cancel ровно один", cb.events.count("cancel") == 1)
     check("нет commit", "commit" not in cb.events)
+
+
+def test_own_paste_does_not_cancel():
+    print("test: своя вставка (Ctrl+V) не отменяет диктовку")
+    mgr, cb = new_mgr()
+    mgr.on_press(CTRL_R)          # пользователь начал диктовать
+    cb.ignore = True              # приложение шлёт свой Ctrl+V
+    mgr.on_press(KEY_V)
+    mgr.on_release(KEY_V)
+    cb.ignore = False             # вставка закончилась
+    mgr.on_release(CTRL_R)
+    check("события = [start, commit] (без cancel)", cb.events == ["start", "commit"])
+
+    print("test: чужая клавиша по-прежнему отменяет")
+    mgr, cb = new_mgr()
+    mgr.on_press(CTRL_R)
+    mgr.on_press(KEY_V)           # ignore=False → это шорткат Ctrl+V пользователя
+    mgr.on_release(CTRL_R)
+    check("есть cancel, нет commit", cb.events == ["start", "cancel"])
 
 
 def test_toggle():
@@ -142,6 +164,7 @@ def main():
     test_ptt_clean()
     test_ptt_cancel_by_other_key()
     test_ptt_cancel_once()
+    test_own_paste_does_not_cancel()
     test_toggle()
     test_config()
     if "--model" in sys.argv:

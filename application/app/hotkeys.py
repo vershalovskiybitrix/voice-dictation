@@ -35,7 +35,14 @@ class HotkeyManager:
         self._ptt_down = False
         self._ptt_dirty = False
 
+    def _ignore(self):
+        """Пока приложение само шлёт клавиши (вставка Ctrl+V) — не реагируем на них."""
+        fn = getattr(self.cb, "ignore_keys", None)
+        return bool(fn()) if fn else False
+
     def on_press(self, key):
+        if self._ignore():
+            return
         name = key_to_name(key)
         if name == self.ptt_key:
             if not self._ptt_down:
@@ -52,6 +59,8 @@ class HotkeyManager:
             self.cb.on_ptt_cancel()
 
     def on_release(self, key):
+        if self._ignore():
+            return
         name = key_to_name(key)
         if name == self.ptt_key and self._ptt_down:
             self._ptt_down = False

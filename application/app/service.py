@@ -158,8 +158,7 @@ class VoiceService:
         self.set_status(f"Файл: {name}")
         try:
             with self._infer_lock:
-                # Для файлов не режем сегменты по no_speech (иначе песни/шум обрываются).
-                text = self.transcriber.transcribe(path, self.language, drop_no_speech=False)
+                text = self.transcriber.transcribe(path, self.language)
         except Exception as e:
             log(f"Ошибка распознавания файла {name!r}: {e}")
             self._notify(f"Не удалось распознать: {name}")
@@ -184,6 +183,10 @@ class VoiceService:
     # ------------------------------------------------------------------ #
     #  Колбэки HotkeyManager
     # ------------------------------------------------------------------ #
+    def ignore_keys(self):
+        """Игнорировать клавиши, пока сами шлём Ctrl+V (иначе отменим свою же диктовку)."""
+        return self.inserter.busy
+
     def on_ptt_start(self):
         self._begin("ptt")
 
