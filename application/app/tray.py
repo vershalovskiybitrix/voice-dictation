@@ -5,7 +5,7 @@ import threading
 
 import pyperclip
 
-from .config import inbox_dir
+from .config import inbox_dir, recordings_dir
 from .files import pick_audio_file
 from .util import log
 
@@ -64,6 +64,29 @@ def build_tray(service):
                 log(f"Не удалось скопировать в буфер: {e}")
         return _copy
 
+    def retranscribe(path):
+        def _run(icon, item):
+            threading.Thread(target=service.handle_file, args=(path,), daemon=True).start()
+        return _run
+
+    def recording_items():
+        folder = recordings_dir()
+        try:
+            names = sorted(os.listdir(folder), reverse=True)
+        except OSError:
+            names = []
+        if not names:
+            return [Item("(пока нет записей)", None, enabled=False)]
+        return [Item(n[:-4], retranscribe(os.path.join(folder, n))) for n in names]
+
+    def open_recordings(icon, item):
+        folder = recordings_dir()
+        os.makedirs(folder, exist_ok=True)
+        try:
+            os.startfile(folder)
+        except Exception as e:
+            log(f"Не удалось открыть папку записей: {e}")
+
     def history_items():
         if not service.history:
             return [Item("(пусто)", None, enabled=False)]
@@ -87,6 +110,8 @@ def build_tray(service):
         Item("Язык: English", set_lang("en"), checked=lang_checked("en"), radio=True),
         pystray.Menu.SEPARATOR,
         Item("Последние распознавания (клик — в буфер)", pystray.Menu(history_items)),
+        Item("Перераспознать запись (клик — заново)", pystray.Menu(recording_items)),
+        Item("Открыть папку записей", open_recordings),
         pystray.Menu.SEPARATOR,
         Item("Распознать аудиофайл…", recognize_file),
         Item("Открыть папку для распознавания", open_inbox),

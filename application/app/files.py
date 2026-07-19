@@ -4,7 +4,10 @@ import ctypes
 import os
 import shutil
 import time
+import wave
 from ctypes import wintypes
+
+import numpy as np
 
 from .util import log
 
@@ -73,6 +76,44 @@ def pick_audio_file():
 # --------------------------------------------------------------------------- #
 #  Папка-приёмник: бросил файл → распознался
 # --------------------------------------------------------------------------- #
+def prune_dir(folder, keep):
+    """Оставляет в папке только keep самых свежих файлов, остальные удаляет."""
+    try:
+        files = [os.path.join(folder, f) for f in os.listdir(folder)]
+    except OSError:
+        return
+    files = [f for f in files if os.path.isfile(f)]
+    files.sort(key=os.path.getmtime, reverse=True)
+    for old in files[keep:]:
+        try:
+            os.remove(old)
+        except OSError:
+            pass
+
+
+def save_recording(folder, audio, samplerate, keep):
+    """Сохраняет диктовку в WAV, храня keep последних. Возвращает путь или None.
+
+    Нужно, чтобы при сбое распознавания (например, зацикленные повторы) запись можно
+    было перераспознать, а не диктовать заново."""
+    if keep <= 0 or audio is None or audio.size == 0:
+        return None
+    try:
+        os.makedirs(folder, exist_ok=True)
+        path = os.path.join(folder, time.strftime("%Y-%m-%d_%H-%M-%S") + ".wav")
+        pcm = (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16)
+        with wave.open(path, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(samplerate)
+            w.writeframes(pcm.tobytes())
+        prune_dir(folder, keep)
+        return path
+    except Exception as e:
+        log(f"Не удалось сохранить запись: {e}")
+        return None
+
+
 def _retire(path, done_dir, keep):
     """Убирает обработанный файл: при keep<=0 удаляет, иначе переносит в done и подрезает."""
     if keep <= 0:
@@ -93,15 +134,7 @@ def _retire(path, done_dir, keep):
     except OSError as e:
         log(f"Не удалось переместить обработанный файл: {e}")
         return
-    # Подрезаем done/ до keep последних по времени изменения.
-    files = [os.path.join(done_dir, f) for f in os.listdir(done_dir)]
-    files = [f for f in files if os.path.isfile(f)]
-    files.sort(key=os.path.getmtime, reverse=True)
-    for old in files[keep:]:
-        try:
-            os.remove(old)
-        except OSError:
-            pass
+    prune_dir(done_dir, keep)
 
 
 def watch_inbox(folder, on_file, keep, poll=1.0):

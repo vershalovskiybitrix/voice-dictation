@@ -9,9 +9,9 @@ import winsound
 import pyperclip
 
 from .capture import Recorder
-from .config import inbox_dir, load_config, save_config
+from .config import SAMPLE_RATE, inbox_dir, load_config, recordings_dir, save_config
 from .engine import Transcriber, load_model
-from .files import watch_inbox
+from .files import save_recording, watch_inbox
 from .hotkeys import HotkeyManager
 from .output import Inserter
 from .util import log
@@ -122,6 +122,8 @@ class VoiceService:
             self.set_status("Idle")
             return
         self.beep(False)
+        # Сохраняем запись, чтобы при сбое распознавания её можно было переиграть из трея.
+        save_recording(recordings_dir(), audio, SAMPLE_RATE, self.cfg["keep_recordings"])
         threading.Thread(target=self._process, args=(audio,), daemon=True).start()
 
     def _process(self, audio):

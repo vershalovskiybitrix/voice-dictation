@@ -38,6 +38,10 @@ DEFAULT_CONFIG = {
     "inbox_dirname": "inbox",
     "inbox_keep_processed": 20,
 
+    # Кэш последних диктовок: аудио сохраняется в runtime/recordings, чтобы при сбое
+    # распознавания (петля повторов и т.п.) можно было перераспознать из трея. 0 — выключить.
+    "keep_recordings": 10,
+
     "beep": True,
     "min_record_seconds": 0.4,    # короче — игнор (защита от случайных нажатий)
     "no_speech_threshold": 0.6,   # сегменты с no_speech_prob выше — отбрасываем
@@ -94,3 +98,8 @@ def save_config(cfg):
 def inbox_dir(cfg):
     """Путь к папке-приёмнику аудиофайлов (создаётся при обращении)."""
     return os.path.join(RUNTIME_DIR, cfg.get("inbox_dirname", "inbox"))
+
+
+def recordings_dir(cfg=None):
+    """Путь к кэшу последних диктовок (для перераспознавания при сбое)."""
+    return os.path.join(RUNTIME_DIR, "recordings")

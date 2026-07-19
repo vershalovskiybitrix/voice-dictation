@@ -10,6 +10,7 @@
 
 import os
 import sys
+import time
 
 # tests/ лежит внутри application/ — добавляем application/ в путь, чтобы найти пакет app.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -136,6 +137,36 @@ def test_collapse_repeats():
     check("пустая строка ок", collapse_repeats("") == "")
 
 
+def test_recordings_cache():
+    print("test: кэш последних записей диктовки")
+    import shutil, tempfile, wave
+    import numpy as np
+    from app.files import save_recording
+
+    folder = os.path.join(tempfile.gettempdir(), "vs_rec_test")
+    shutil.rmtree(folder, ignore_errors=True)
+    tone = (0.2 * np.sin(np.linspace(0, 100, 16000))).astype(np.float32)
+
+    paths = []
+    for _ in range(4):
+        p = save_recording(folder, tone, 16000, keep=3)
+        if p:
+            paths.append(p)
+        time.sleep(1.05)   # имена по секундам — разводим во времени
+
+    check("файлы созданы", len(paths) == 4)
+    left = os.listdir(folder)
+    check("хранится только keep=3", len(left) == 3)
+    check("самый старый удалён", os.path.basename(paths[0]) not in left)
+
+    with wave.open(paths[-1], "rb") as w:
+        check("WAV: моно 16 кГц", w.getnchannels() == 1 and w.getframerate() == 16000)
+        check("WAV: есть данные", w.getnframes() == 16000)
+
+    check("keep=0 отключает", save_recording(folder, tone, 16000, keep=0) is None)
+    shutil.rmtree(folder, ignore_errors=True)
+
+
 def test_history():
     print("test: история последних распознаваний")
     import collections
@@ -200,6 +231,7 @@ def main():
     test_own_paste_does_not_cancel()
     test_toggle()
     test_collapse_repeats()
+    test_recordings_cache()
     test_history()
     test_config()
     if "--model" in sys.argv:
