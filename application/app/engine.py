@@ -1,8 +1,26 @@
 """Движок распознавания: подготовка CUDA, загрузка модели и транскрипция."""
 
 import os
+import re
 
 from .util import log
+
+# Температуры для отката: при 0.0 распознаётся обычная речь, выше — только те сегменты,
+# которые библиотека признала зациклёнными/некачественными. Лестница укорочена до трёх
+# шагов (в faster-whisper по умолчанию шесть): петля разрывается так же, но на музыке,
+# где «плохими» признаётся много сегментов, расшифровка не замедляется в разы.
+TEMPERATURE_FALLBACK = (0.0, 0.2, 0.4)
+
+# Короткий фрагмент (1–4 символа), повторённый 5+ раз подряд: «1.1.1.1.1…», «ииии…».
+_REPEAT_RE = re.compile(r"(.{1,4}?)\1{4,}", re.DOTALL)
+
+
+def collapse_repeats(text):
+    """Схлопывает зацикленные повторы до двух копий (страховка поверх temperature-отката).
+
+    Порог намеренно высокий: в обычном тексте короткая группа редко повторяется 5+ раз
+    подряд, поэтому нормальные фразы и многоточия не страдают."""
+    return _REPEAT_RE.sub(lambda m: m.group(1) * 2, text).strip()
 
 
 def add_cuda_dll_dirs():
@@ -77,13 +95,18 @@ class Transcriber:
             audio,
             language=lang,
             beam_size=self.cfg["beam_size"],
-            temperature=0.0,
+            # Лестница температур — штатная защита от зацикливания: если сегмент признан
+            # слишком повторяющимся (compression_ratio выше порога), он перераспознаётся
+            # со следующей температурой. Одно число отключало бы этот откат.
+            temperature=TEMPERATURE_FALLBACK,
+            compression_ratio_threshold=2.4,   # детектор «текст зациклился»
+            repetition_penalty=1.1,            # мягко снижает шанс войти в петлю
             condition_on_previous_text=False,
             vad_filter=True,
             no_speech_threshold=self.cfg["no_speech_threshold"],
             initial_prompt=self.cfg["initial_prompt"] or None,
         )
-        text = "".join(seg.text for seg in segments).strip()
+        text = collapse_repeats("".join(seg.text for seg in segments).strip())
         if text.lower() in self.blacklist:
             log(f"Отброшено как галлюцинация: {text!r}")
             return ""

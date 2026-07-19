@@ -117,6 +117,25 @@ def test_toggle():
     check("два toggle", cb.events == ["toggle", "toggle"])
 
 
+def test_collapse_repeats():
+    print("test: схлопывание зацикленных повторов")
+    from app.engine import collapse_repeats
+
+    # Реальные случаи пользователя
+    junk1 = "ьные предметные действия " + "1." * 100 + " в под ко"
+    out1 = collapse_repeats(junk1)
+    check("«1.1.1.…» схлопнулось", len(out1) < 60 and "предметные действия" in out1)
+
+    junk2 = "в конце я протянул " + "и" * 200
+    out2 = collapse_repeats(junk2)
+    check("«ииии…» ×200 схлопнулось", len(out2) < 40 and out2.startswith("в конце"))
+
+    # Нормальный текст не должен пострадать
+    ok = "Привет, это обычная фраза с многоточием... и продолжением."
+    check("обычный текст не тронут", collapse_repeats(ok) == ok)
+    check("пустая строка ок", collapse_repeats("") == "")
+
+
 def test_history():
     print("test: история последних распознаваний")
     import collections
@@ -180,6 +199,7 @@ def main():
     test_ptt_cancel_once()
     test_own_paste_does_not_cancel()
     test_toggle()
+    test_collapse_repeats()
     test_history()
     test_config()
     if "--model" in sys.argv:
