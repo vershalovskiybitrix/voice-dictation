@@ -60,6 +60,16 @@ def build_tray(service):
     def toggle_file_insert(icon, item):
         service.set_file_insert(not service.file_insert)
 
+    def speak_clipboard(icon, item):
+        threading.Thread(target=service.speak_clipboard, daemon=True).start()
+
+    def speak_test(icon, item):
+        threading.Thread(
+            target=service.speak_text,
+            args=("Проверка чтения VoiceService. Один, два, три.",),
+            daemon=True,
+        ).start()
+
     def copy_text(text):
         def _copy(icon, item):
             try:
@@ -122,6 +132,9 @@ def build_tray(service):
         Item("Открыть папку для распознавания", open_inbox),
         Item("Вставлять результат файла в курсор", toggle_file_insert,
              checked=lambda item: service.file_insert),
+        pystray.Menu.SEPARATOR,
+        Item("Прочитать буфер", speak_clipboard),
+        Item("Тест читалки", speak_test),
         pystray.Menu.SEPARATOR,
         Item("Пауза хоткеев", toggle_pause, checked=lambda item: service.paused),
         Item("Выход", do_quit),
