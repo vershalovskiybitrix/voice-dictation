@@ -103,11 +103,7 @@ def build_tray(service):
         return items
 
     def do_quit(icon, item):
-        try:
-            icon.visible = False
-        except Exception:
-            pass
-        icon.stop()
+        service.quit_cleanly()
         os._exit(0)
 
     menu = pystray.Menu(

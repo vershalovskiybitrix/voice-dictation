@@ -2,6 +2,8 @@
 
 import subprocess
 import sys
+import shutil
+import importlib.util
 
 import pyperclip
 
@@ -113,3 +115,29 @@ def list_sapi_voices():
     if completed.returncode != 0:
         return []
     return [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+
+
+def providers_status():
+    sapi_voices = list_sapi_voices()
+    return {
+        "sapi": {
+            "available": bool(sapi_voices),
+            "detail": ", ".join(sapi_voices) if sapi_voices else "SAPI voices не найдены",
+        },
+        "rhvoice": {
+            "available": bool(shutil.which("RHVoice-client") or shutil.which("rhvoice-client")),
+            "detail": shutil.which("RHVoice-client") or shutil.which("rhvoice-client") or "RHVoice-client не найден",
+        },
+        "piper": {
+            "available": bool(shutil.which("piper")),
+            "detail": shutil.which("piper") or "piper CLI не найден",
+        },
+        "silero": {
+            "available": bool(importlib.util.find_spec("torch")),
+            "detail": "torch установлен" if importlib.util.find_spec("torch") else "torch/silero не установлены",
+        },
+        "yandex": {
+            "available": False,
+            "detail": "Yandex TTS будет подключён отдельным слоем через .env",
+        },
+    }

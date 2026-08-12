@@ -259,6 +259,17 @@ class VoiceService:
             log(f"Ошибка чтения буфера: {e}")
             self._notify(str(e), "VoiceService TTS")
 
+    def quit_cleanly(self):
+        if self.tray is not None:
+            try:
+                self.tray.visible = False
+            except Exception:
+                pass
+            try:
+                self.tray.stop()
+            except Exception:
+                pass
+
     def handle_file(self, path):
         """Распознаёт аудиофайл (любой источник) → буфер (+ опц. вставка) + уведомление."""
         name = os.path.basename(path)

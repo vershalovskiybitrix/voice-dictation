@@ -6,7 +6,7 @@ from tkinter import ttk
 
 import pyperclip
 
-from .tts import list_sapi_voices
+from .tts import list_sapi_voices, providers_status
 from .util import log
 
 _window = None
@@ -61,6 +61,7 @@ class SettingsWindow(ttk.Frame):
         self.status_var = tk.StringVar()
         self.count_var = tk.StringVar()
         self.sapi_voices = []
+        self.provider_status_text = None
 
         self._build_header()
         self._build_tabs()
@@ -130,6 +131,7 @@ class SettingsWindow(ttk.Frame):
         buttons.grid(row=4, column=0, columnspan=3, sticky="w", pady=(12, 0))
         ttk.Button(buttons, text="Прочитать буфер", command=self.service.speak_clipboard).pack(side=tk.LEFT)
         ttk.Button(buttons, text="Тестовая фраза", command=self._speak_test).pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Button(buttons, text="Выход", command=self._quit_app).pack(side=tk.LEFT, padx=(8, 0))
         frame.columnconfigure(1, weight=1)
         return frame
 
@@ -139,12 +141,19 @@ class SettingsWindow(ttk.Frame):
         self._text(frame, "Piper model path", "tts_piper_model", row=1)
         self._text(frame, "Silero speaker", "tts_silero_speaker", row=2)
         self._text(frame, "Robot/fun preset", "tts_robot_preset", row=3)
-        ttk.Separator(frame).grid(row=4, column=0, columnspan=3, sticky="ew", pady=10)
-        ttk.Label(frame, text="Yandex TTS").grid(row=5, column=0, columnspan=2, sticky="w")
-        self._text(frame, "Yandex voice", "tts_yandex_voice", row=6)
-        self._text(frame, "Yandex role", "tts_yandex_role", row=7)
-        self._number(frame, "Yandex speed", "tts_yandex_speed", row=8, width=8)
+        self.provider_status_text = tk.Text(frame, height=7, width=70, wrap="word")
+        self.provider_status_text.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(10, 0))
+        self.provider_status_text.configure(state="disabled")
+        ttk.Button(frame, text="Обновить статус", command=self._refresh_provider_status).grid(
+            row=5, column=0, sticky="w", pady=(8, 0)
+        )
+        ttk.Separator(frame).grid(row=6, column=0, columnspan=3, sticky="ew", pady=10)
+        ttk.Label(frame, text="Yandex TTS").grid(row=7, column=0, columnspan=2, sticky="w")
+        self._text(frame, "Yandex voice", "tts_yandex_voice", row=8)
+        self._text(frame, "Yandex role", "tts_yandex_role", row=9)
+        self._number(frame, "Yandex speed", "tts_yandex_speed", row=10, width=8)
         frame.columnconfigure(1, weight=1)
+        self.after(100, self._refresh_provider_status)
         return frame
 
     def _load_sapi_voices(self):
@@ -221,6 +230,22 @@ class SettingsWindow(ttk.Frame):
 
     def _speak_test(self):
         self.service.speak_text("Проверка чтения VoiceService. Один, два, три.")
+
+    def _quit_app(self):
+        self.service.quit_cleanly()
+        self.after(200, lambda: __import__("os")._exit(0))
+
+    def _refresh_provider_status(self):
+        if self.provider_status_text is None:
+            return
+        lines = []
+        for name, info in providers_status().items():
+            mark = "OK" if info["available"] else "--"
+            lines.append(f"{mark} {name}: {info['detail']}")
+        self.provider_status_text.configure(state="normal")
+        self.provider_status_text.delete("1.0", tk.END)
+        self.provider_status_text.insert("1.0", "\n".join(lines))
+        self.provider_status_text.configure(state="disabled")
 
     def _tick(self):
         self._refresh()
