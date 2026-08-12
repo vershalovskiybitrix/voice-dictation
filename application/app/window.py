@@ -196,7 +196,9 @@ class SettingsWindow(ttk.Frame):
             self._number(self.tts_settings_frame, "Скорость", "tts_yandex_speed", row=2, width=8)
             return
         if provider == "google_old":
-            self._text(self.tts_settings_frame, "Пресет", "tts_robot_preset", row=0, width=28)
+            self._combo(self.tts_settings_frame, "Язык Google", "tts_google_lang", ["ru", "en"], row=0)
+            self._combo(self.tts_settings_frame, "Домен Google", "tts_google_tld", ["com", "ru"], row=1)
+            self._text(self.tts_settings_frame, "Пресет", "tts_robot_preset", row=2, width=28)
 
     def _provider_status_line(self, provider):
         info = providers_status().get(provider)

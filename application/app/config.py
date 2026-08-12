@@ -68,6 +68,8 @@ DEFAULT_CONFIG = {
     "tts_yandex_voice": "alena",
     "tts_yandex_role": "",
     "tts_yandex_speed": 1.0,
+    "tts_google_lang": "ru",
+    "tts_google_tld": "com",
     "tts_robot_preset": "",
 
     "beep": True,

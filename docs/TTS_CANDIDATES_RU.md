@@ -7,7 +7,7 @@
 - `silero`: подключён локально через PyTorch Hub. Активная модель: `v5_ru`, голоса: `aidar`, `baya`, `kseniya`, `eugene`, `xenia`.
 - `yandex`: подключён через Yandex SpeechKit API v1. Секреты читаются из `.env`, в git не добавляются.
 - `rhvoice`: отдельный `RHVoice-client` не найден. На Windows этот вариант разумнее использовать через SAPI-голоса, если RHVoice будет установлен в систему.
-- `google_old`: оставлен как идея для отдельного robot/fun-пресета, готового провайдера пока нет.
+- `google_old`: подключён как экспериментальный robot/fun-режим через старый endpoint Google Translate TTS. Это не официальный Google Cloud TTS и может зависеть от доступности веб-сервиса.
 
 ## Проверка
 
@@ -16,6 +16,7 @@ D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py -
 D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py --provider piper "Проверка Piper."
 D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py --provider silero "Проверка Silero."
 D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py --provider yandex "Проверка Yandex."
+D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py --provider google_old "Проверка Google robot."
 ```
 
 ## Секреты
@@ -36,3 +37,5 @@ Piper сейчас самый простой локальный путь: мал
 Silero тяжелее: нужны `torch`, `soundfile`, `scipy`, `omegaconf`, а модель хранится в cache PyTorch Hub. Зато есть несколько русских голосов для сравнения.
 
 Yandex нужен как облачный fallback и эталон качества. По умолчанию приложение оставлено на локальном провайдере, чтобы чтение не зависело от сети и денег.
+
+Google-robot добавлен именно как забавный/ностальгический пресет. Для важных задач лучше сравнивать Piper, Silero и Yandex.

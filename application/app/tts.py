@@ -57,8 +57,8 @@ def speak_text(text, cfg):
         return speak_rhvoice(text, cfg)
     if provider == "yandex":
         return speak_yandex(text, cfg)
-    if provider in ("google_old",):
-        raise TtsError(f"{provider_label(provider)} пока не подключён.")
+    if provider == "google_old":
+        return speak_google_old(text, cfg)
     raise TtsError(f"Неизвестный TTS-провайдер: {provider!r}")
 
 
@@ -343,6 +343,76 @@ def speak_yandex(text, cfg):
     winsound.PlaySound(str(out_path), winsound.SND_FILENAME)
 
 
+def speak_google_old(text, cfg):
+    if not text.strip():
+        raise TtsError("Нет текста для чтения.")
+    try:
+        import numpy as np
+        import soundfile as sf
+    except Exception as e:
+        raise TtsError(f"numpy/soundfile не установлены для Google-robot: {e}") from e
+
+    out_dir = Path(RUNTIME_DIR) / "tts" / "out"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    wav_path = out_dir / f"google_old_{uuid.uuid4().hex}.wav"
+    try:
+        chunks = _split_google_tts_text(text)
+        parts = []
+        sample_rate = None
+        for chunk in chunks:
+            mp3_path = out_dir / f"google_old_{uuid.uuid4().hex}.mp3"
+            _download_google_translate_tts(
+                chunk,
+                cfg.get("tts_google_lang", "ru"),
+                cfg.get("tts_google_tld", "com"),
+                mp3_path,
+            )
+            audio, current_rate = sf.read(str(mp3_path), dtype="float32")
+            sample_rate = sample_rate or current_rate
+            if current_rate != sample_rate:
+                raise TtsError(f"Google-robot вернул разные sample rate: {sample_rate} и {current_rate}.")
+            parts.append(audio)
+        audio = np.concatenate(parts) if len(parts) > 1 else parts[0]
+        sf.write(str(wav_path), audio, sample_rate)
+    except Exception as e:
+        raise TtsError(f"Google-robot TTS не смог озвучить текст: {e}") from e
+    winsound.PlaySound(str(wav_path), winsound.SND_FILENAME)
+
+
+def _split_google_tts_text(text, limit=180):
+    words = text.split()
+    chunks = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if len(candidate) <= limit:
+            current = candidate
+            continue
+        if current:
+            chunks.append(current)
+        current = word[:limit]
+        rest = word[limit:]
+        while rest:
+            chunks.append(current)
+            current = rest[:limit]
+            rest = rest[limit:]
+    if current:
+        chunks.append(current)
+    return chunks or [text[:limit]]
+
+
+def _download_google_translate_tts(text, lang, tld, out_path):
+    url = f"https://translate.google.{tld}/translate_tts?" + parse.urlencode(
+        {"ie": "UTF-8", "client": "tw-ob", "tl": lang, "q": text}
+    )
+    req = request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with request.urlopen(req, timeout=30) as response:
+        data = response.read()
+    if not data:
+        raise TtsError("Google Translate TTS вернул пустой ответ.")
+    out_path.write_bytes(data)
+
+
 def list_sapi_voices():
     script = (
         "$v = New-Object -ComObject SAPI.SpVoice; "
@@ -401,8 +471,8 @@ def providers_status():
             "label": provider_label("yandex"),
         },
         "google_old": {
-            "available": False,
-            "detail": "старый Google-голос пока не найден/не подключён",
+            "available": bool(importlib.util.find_spec("numpy") and importlib.util.find_spec("soundfile")),
+            "detail": "прямой Google Translate TTS + soundfile" if importlib.util.find_spec("numpy") and importlib.util.find_spec("soundfile") else "numpy/soundfile не установлены",
             "label": provider_label("google_old"),
         },
     }
