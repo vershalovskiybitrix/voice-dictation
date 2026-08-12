@@ -12,6 +12,13 @@ import os
 import sys
 import time
 
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        if _stream is not None:
+            _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # tests/ лежит внутри application/ — добавляем application/ в путь, чтобы найти пакет app.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -167,6 +174,38 @@ def test_recordings_cache():
     shutil.rmtree(folder, ignore_errors=True)
 
 
+def test_chunking():
+    print("test: нарезка длинной диктовки по тишине")
+    import numpy as np
+    from app.chunking import should_cut
+    from app.config import DEFAULT_CONFIG, SAMPLE_RATE
+
+    cfg = dict(DEFAULT_CONFIG)
+    cfg["chunk_min_seconds"] = 10.0
+    cfg["chunk_max_seconds"] = 30.0
+    cfg["chunk_silence_seconds"] = 0.4
+    cfg["chunk_silence_rms"] = 0.012
+
+    speech_9s = np.full(int(9 * SAMPLE_RATE), 0.04, dtype=np.float32)
+    check("до min_seconds не режет", not should_cut(speech_9s, cfg))
+
+    speech = np.full(int(11 * SAMPLE_RATE), 0.04, dtype=np.float32)
+    silence = np.zeros(int(0.8 * SAMPLE_RATE), dtype=np.float32)
+    check("после min_seconds режет на паузе", should_cut(np.concatenate((speech, silence)), cfg))
+
+    no_pause = np.full(int(12 * SAMPLE_RATE), 0.04, dtype=np.float32)
+    check("без паузы не режет раньше max", not should_cut(no_pause, cfg))
+
+    long_no_pause = np.full(int(31 * SAMPLE_RATE), 0.04, dtype=np.float32)
+    check("max_seconds режет даже без паузы", should_cut(long_no_pause, cfg))
+
+
+def test_window_import():
+    print("test: окно управления")
+    import app.window  # noqa
+    check("window импортируется", True)
+
+
 def test_history():
     print("test: история последних распознаваний")
     import collections
@@ -189,6 +228,9 @@ def test_config():
     check("есть ptt_beep_delay", "ptt_beep_delay" in cfg)
     check("есть file_insert_at_cursor", "file_insert_at_cursor" in cfg)
     check("есть inbox_keep_processed", "inbox_keep_processed" in cfg)
+    check("chunking включен по умолчанию", cfg["toggle_chunking_enabled"] is True)
+    check("chunk partial insert включен по умолчанию", cfg["chunk_insert_partials"] is True)
+    check("chunk separator = пробел", cfg["chunk_insert_separator"] == " ")
 
 
 def test_imports():
@@ -232,6 +274,8 @@ def main():
     test_toggle()
     test_collapse_repeats()
     test_recordings_cache()
+    test_chunking()
+    test_window_import()
     test_history()
     test_config()
     if "--model" in sys.argv:

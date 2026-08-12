@@ -42,6 +42,17 @@ DEFAULT_CONFIG = {
     # распознавания (петля повторов и т.п.) можно было перераспознать из трея. 0 — выключить.
     "keep_recordings": 10,
 
+    # Длинная диктовка в toggle-режиме: запись режется на куски после паузы.
+    # PTT по правому Ctrl не меняется.
+    "toggle_chunking_enabled": True,
+    "chunk_min_seconds": 10.0,
+    "chunk_max_seconds": 30.0,
+    "chunk_silence_seconds": 0.4,
+    "chunk_silence_rms": 0.012,
+    "chunk_poll_seconds": 0.25,
+    "chunk_insert_partials": True,
+    "chunk_insert_separator": " ",
+
     "beep": True,
     "min_record_seconds": 0.4,    # короче — игнор (защита от случайных нажатий)
     "no_speech_threshold": 0.6,   # сегменты с no_speech_prob выше — отбрасываем

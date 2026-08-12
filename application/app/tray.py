@@ -8,6 +8,7 @@ import pyperclip
 from .config import inbox_dir, recordings_dir
 from .files import pick_audio_file
 from .util import log
+from .window import open_control_window
 
 
 def make_icon_image():
@@ -37,6 +38,9 @@ def build_tray(service):
     def toggle_pause(icon, item):
         service.paused = not service.paused
         service.set_status("Paused" if service.paused else "Idle")
+
+    def open_window(icon, item):
+        open_control_window(service)
 
     def recognize_file(icon, item):
         def _run():
@@ -99,18 +103,23 @@ def build_tray(service):
         return items
 
     def do_quit(icon, item):
+        try:
+            icon.visible = False
+        except Exception:
+            pass
         icon.stop()
         os._exit(0)
 
     menu = pystray.Menu(
+        Item("Открыть окно", open_window, default=True),
         Item(lambda item: f"Статус: {service.status}", None, enabled=False),
         pystray.Menu.SEPARATOR,
         Item("Язык: Авто", set_lang("auto"), checked=lang_checked("auto"), radio=True),
         Item("Язык: Русский", set_lang("ru"), checked=lang_checked("ru"), radio=True),
         Item("Язык: English", set_lang("en"), checked=lang_checked("en"), radio=True),
         pystray.Menu.SEPARATOR,
-        Item("Последние распознавания (клик — в буфер)", pystray.Menu(history_items)),
-        Item("Перераспознать запись (клик — заново)", pystray.Menu(recording_items)),
+        Item("Последние тексты текущего запуска (клик — в буфер)", pystray.Menu(history_items)),
+        Item("Последние аудиозаписи (клик — перераспознать)", pystray.Menu(recording_items)),
         Item("Открыть папку записей", open_recordings),
         pystray.Menu.SEPARATOR,
         Item("Распознать аудиофайл…", recognize_file),

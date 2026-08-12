@@ -43,10 +43,16 @@ class Recorder:
     def stop(self):
         """Закрывает поток и возвращает накопленное аудио (1-D float32)."""
         self._close_stream()
+        return self.read_available()
+
+    def read_available(self):
+        """Возвращает накопленное на текущий момент аудио и очищает внутренний буфер."""
         with self._lock:
             if not self._frames:
                 return np.zeros(0, dtype=np.float32)
-            return np.concatenate(self._frames, axis=0).flatten()
+            audio = np.concatenate(self._frames, axis=0).flatten()
+            self._frames = []
+            return audio
 
     def discard(self):
         """Закрывает поток и выбрасывает записанное (отмена ввода)."""

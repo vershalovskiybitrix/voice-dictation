@@ -6,8 +6,10 @@ import threading
 import time
 import winsound
 
+import numpy as np
 import pyperclip
 
+from .chunking import should_cut
 from .capture import Recorder
 from .config import SAMPLE_RATE, inbox_dir, load_config, recordings_dir, save_config
 from .engine import Transcriber, load_model
@@ -41,6 +43,9 @@ class VoiceService:
         self._beep_timer = None
         self._lock = threading.RLock()
         self._infer_lock = threading.Lock()  # одно распознавание за раз (микрофон/файл) — щадим VRAM
+        self._chunk_lock = threading.Lock()
+        self._chunk_buffer = np.zeros(0, dtype=np.float32)
+        self._chunk_thread = None
 
     # ------------------------------------------------------------------ #
     #  Индикация
@@ -95,6 +100,8 @@ class VoiceService:
                 self._beep_timer.start()
             else:
                 self.beep(True)
+            if mode == "toggle" and self.cfg.get("toggle_chunking_enabled", False):
+                self._start_chunking()
 
     def _cancel(self, mode):
         with self._lock:
@@ -103,7 +110,10 @@ class VoiceService:
             self._cancel_timer()
             self.recording = False
             self.mode = None
+            if mode == "toggle":
+                self._stop_chunking()
             self.recorder.discard()
+            self._clear_chunk_buffer()
             self.set_status("Idle")
         log("Ввод отменён (нажата другая клавиша).")
 
@@ -115,7 +125,11 @@ class VoiceService:
             self.recording = False
             self.mode = None
             duration = time.time() - self._record_start
+            if mode == "toggle":
+                self._stop_chunking()
             audio = self.recorder.stop()
+            if mode == "toggle":
+                audio = self._drain_chunk_buffer(audio)
 
         if duration < self.cfg["min_record_seconds"] or audio.size == 0:
             log("Слишком короткая запись — игнор.")
@@ -126,8 +140,61 @@ class VoiceService:
         save_recording(recordings_dir(), audio, SAMPLE_RATE, self.cfg["keep_recordings"])
         threading.Thread(target=self._process, args=(audio,), daemon=True).start()
 
-    def _process(self, audio):
-        self.set_status("Transcribing")
+    def _start_chunking(self):
+        self._clear_chunk_buffer()
+        self._chunk_thread = threading.Thread(target=self._chunk_loop, daemon=True)
+        self._chunk_thread.start()
+
+    def _stop_chunking(self):
+        thread = self._chunk_thread
+        self._chunk_thread = None
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=1.0)
+
+    def _clear_chunk_buffer(self):
+        with self._chunk_lock:
+            self._chunk_buffer = np.zeros(0, dtype=np.float32)
+
+    def _append_chunk_audio(self, audio):
+        if audio is None or audio.size == 0:
+            return
+        with self._chunk_lock:
+            if self._chunk_buffer.size == 0:
+                self._chunk_buffer = audio
+            else:
+                self._chunk_buffer = np.concatenate((self._chunk_buffer, audio))
+
+    def _drain_chunk_buffer(self, tail):
+        with self._chunk_lock:
+            buffered = self._chunk_buffer
+            self._chunk_buffer = np.zeros(0, dtype=np.float32)
+        if buffered.size == 0:
+            return tail
+        if tail is None or tail.size == 0:
+            return buffered
+        return np.concatenate((buffered, tail))
+
+    def _chunk_loop(self):
+        poll = float(self.cfg.get("chunk_poll_seconds", 0.25))
+        while True:
+            time.sleep(poll)
+            with self._lock:
+                active = self.recording and self.mode == "toggle"
+            if not active:
+                return
+            self._append_chunk_audio(self.recorder.read_available())
+            with self._chunk_lock:
+                if not should_cut(self._chunk_buffer, self.cfg):
+                    continue
+                audio = self._chunk_buffer
+                self._chunk_buffer = np.zeros(0, dtype=np.float32)
+            if audio.size < int(self.cfg["min_record_seconds"] * SAMPLE_RATE):
+                continue
+            save_recording(recordings_dir(), audio, SAMPLE_RATE, self.cfg["keep_recordings"])
+            threading.Thread(target=self._process, args=(audio, True), daemon=True).start()
+
+    def _process(self, audio, partial=False):
+        self.set_status("Transcribing" if not partial else "Transcribing chunk")
         try:
             with self._infer_lock:
                 text = self.transcriber.transcribe(audio, self.language)
@@ -138,10 +205,21 @@ class VoiceService:
         if text:
             log(f"Распознано: {text!r}")
             self.remember(text)
-            self.inserter.insert(text)
+            if not partial or self.cfg.get("chunk_insert_partials", False):
+                insert_text = text
+                if partial:
+                    insert_text += self.cfg.get("chunk_insert_separator", " ")
+                self.inserter.insert(insert_text)
+            elif partial:
+                try:
+                    pyperclip.copy(text + self.cfg.get("chunk_insert_separator", " "))
+                except Exception:
+                    pass
         else:
             log("Пустой результат — ничего не вставлено.")
-        self.set_status("Idle")
+        with self._lock:
+            still_recording = self.recording
+        self.set_status("Recording" if still_recording else "Idle")
 
     # ------------------------------------------------------------------ #
     #  Распознавание аудиофайлов
