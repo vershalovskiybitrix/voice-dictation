@@ -1,34 +1,38 @@
 # Локальные и облачные читалки для VoiceService
 
-## Цель
-
-Добавить чтение текста так, чтобы основной быстрый путь был локальным и бесплатным, а облачные провайдеры оставались fallback/режимом сравнения.
-
 ## Текущий статус
 
-- `sapi`: доступен через Windows SAPI. На машине найдены голоса `Microsoft Irina Desktop - Russian` и `Microsoft Zira Desktop - English (United States)`.
-- `rhvoice`: адаптер есть, но `RHVoice-client` не найден в PATH.
-- `piper`: адаптер зарезервирован, `piper` CLI не найден.
-- `silero`: адаптер зарезервирован, `torch/silero` не установлены.
-- `yandex`: настройки зарезервированы, подключение через `.env` отдельным слоем.
+- `sapi`: работает через Windows SAPI. Сейчас найдены голоса `Microsoft Irina Desktop - Russian` и `Microsoft Zira Desktop - English (United States)`.
+- `piper`: подключён локально. Бинарник и модель лежат в `runtime/tts/piper`, активная модель: `ru_RU-irina-medium`.
+- `silero`: подключён локально через PyTorch Hub. Активная модель: `v5_ru`, голоса: `aidar`, `baya`, `kseniya`, `eugene`, `xenia`.
+- `yandex`: подключён через Yandex SpeechKit API v1. Секреты читаются из `.env`, в git не добавляются.
+- `rhvoice`: отдельный `RHVoice-client` не найден. На Windows этот вариант разумнее использовать через SAPI-голоса, если RHVoice будет установлен в систему.
+- `google_old`: оставлен как идея для отдельного robot/fun-пресета, готового провайдера пока нет.
 
-Проверка:
+## Проверка
 
 ```powershell
 D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py --status
+D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py --provider piper "Проверка Piper."
+D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py --provider silero "Проверка Silero."
+D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py --provider yandex "Проверка Yandex."
 ```
 
-## Порядок подключения
+## Секреты
 
-1. SAPI: оставить как лёгкий системный fallback и тест кнопок в окне.
-2. Piper: подключить первым локальным модельным TTS, если будет удобный русский голос.
-3. Silero: проверить качество русского и задержку на CPU; ставить только если вес зависимостей приемлем.
-4. RHVoice: держать как лёгкую офлайн-читалку, если качество устроит.
-5. Yandex TTS: подключить после локальных вариантов как облачный fallback/сравнение.
+Yandex TTS использует только имена переменных:
 
-## UX в окне
+```text
+YANDEX_CLOUD_API_KEY
+YANDEX_CLOUD_FOLDER_ID
+```
 
-Вкладка `Читалка` отвечает за активный провайдер и быстрые действия.
-Вкладка `Провайдеры` отвечает за пути моделей, статусы кандидатов и экспериментальные пресеты вроде robot/fun.
+Значения должны лежать в `runtime/.env` или корневом `.env`. В Markdown и git их не добавлять.
 
-Не нужно делать TTS обязательной зависимостью приложения: ошибка одного провайдера не должна ломать диктовку.
+## Примечания
+
+Piper сейчас самый простой локальный путь: маленький бинарник, отдельная ONNX-модель, без тяжёлого Python-стека.
+
+Silero тяжелее: нужны `torch`, `soundfile`, `scipy`, `omegaconf`, а модель хранится в cache PyTorch Hub. Зато есть несколько русских голосов для сравнения.
+
+Yandex нужен как облачный fallback и эталон качества. По умолчанию приложение оставлено на локальном провайдере, чтобы чтение не зависело от сети и денег.

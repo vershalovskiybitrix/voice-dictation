@@ -6,7 +6,7 @@ from tkinter import ttk
 
 import pyperclip
 
-from .tts import list_sapi_voices, provider_label, provider_value, providers_status
+from .tts import SILERO_SPEAKERS, list_sapi_voices, provider_label, provider_value, providers_status
 from .util import log
 
 _window = None
@@ -183,7 +183,9 @@ class SettingsWindow(ttk.Frame):
             self._text(self.tts_settings_frame, "Файл модели Piper (.onnx)", "tts_piper_model", row=1, width=58)
             return
         if provider == "silero":
-            self._text(self.tts_settings_frame, "Голос Silero", "tts_silero_speaker", row=0, width=28)
+            self._combo(self.tts_settings_frame, "Модель Silero", "tts_silero_model", ["v5_ru"], row=0)
+            self._combo(self.tts_settings_frame, "Голос Silero", "tts_silero_speaker", SILERO_SPEAKERS, row=1)
+            self._combo(self.tts_settings_frame, "Частота Silero", "tts_silero_sample_rate", ["48000", "24000", "8000"], row=2)
             return
         if provider == "rhvoice":
             self._text(self.tts_settings_frame, "Голос RHVoice", "tts_voice", row=0, width=28)

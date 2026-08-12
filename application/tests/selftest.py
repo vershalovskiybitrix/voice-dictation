@@ -240,6 +240,8 @@ def test_config():
     check("tts_provider есть", "tts_provider" in cfg)
     check("tts_volume есть", "tts_volume" in cfg)
     check("tts_piper_exe есть", "tts_piper_exe" in cfg)
+    check("tts_silero_model есть", "tts_silero_model" in cfg)
+    check("tts_yandex_voice есть", "tts_yandex_voice" in cfg)
 
 
 def test_imports():

@@ -62,7 +62,9 @@ DEFAULT_CONFIG = {
     "tts_volume": 100,            # SAPI: 0..100
     "tts_piper_exe": "",
     "tts_piper_model": "",
-    "tts_silero_speaker": "",
+    "tts_silero_model": "v5_ru",
+    "tts_silero_speaker": "baya",
+    "tts_silero_sample_rate": 48000,
     "tts_yandex_voice": "alena",
     "tts_yandex_role": "",
     "tts_yandex_speed": 1.0,

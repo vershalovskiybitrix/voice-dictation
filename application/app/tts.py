@@ -7,11 +7,13 @@ import shutil
 import importlib.util
 import uuid
 import winsound
+import wave
 from pathlib import Path
+from urllib import parse, request, error
 
 import pyperclip
 
-from .config import RUNTIME_DIR
+from .config import RUNTIME_DIR, ROOT_DIR
 from .util import log
 
 
@@ -27,6 +29,9 @@ PROVIDER_LABELS = {
     "yandex": "Yandex SpeechKit: облачная читалка",
     "google_old": "Старый Google-робот: не подключён",
 }
+
+SILERO_SPEAKERS = ["aidar", "baya", "kseniya", "eugene", "xenia"]
+_SILERO_MODEL_CACHE = {}
 
 
 def provider_label(provider):
@@ -46,9 +51,13 @@ def speak_text(text, cfg):
         return speak_sapi(text, cfg)
     if provider == "piper":
         return speak_piper(text, cfg)
+    if provider == "silero":
+        return speak_silero(text, cfg)
     if provider == "rhvoice":
         return speak_rhvoice(text, cfg)
-    if provider in ("silero", "yandex", "google_old"):
+    if provider == "yandex":
+        return speak_yandex(text, cfg)
+    if provider in ("google_old",):
         raise TtsError(f"{provider_label(provider)} пока не подключён.")
     raise TtsError(f"Неизвестный TTS-провайдер: {provider!r}")
 
@@ -189,6 +198,151 @@ def speak_piper(text, cfg):
     winsound.PlaySound(str(out_path), winsound.SND_FILENAME)
 
 
+def _silero_cache_model_path(model_name):
+    torch_home = Path(os.environ.get("TORCH_HOME") or Path.home() / ".cache" / "torch")
+    return (
+        torch_home
+        / "hub"
+        / "snakers4_silero-models_master"
+        / "src"
+        / "silero"
+        / "model"
+        / f"{model_name}.pt"
+    )
+
+
+def find_silero_model_file(cfg=None):
+    cfg = cfg or {}
+    model_name = cfg.get("tts_silero_model", "v5_ru")
+    path = _silero_cache_model_path(model_name)
+    return str(path) if path.exists() else None
+
+
+def _load_silero_model(model_name):
+    cached = _SILERO_MODEL_CACHE.get(model_name)
+    if cached is not None:
+        return cached
+    try:
+        import torch
+    except Exception as e:
+        raise TtsError(f"torch не установлен для Silero: {e}") from e
+    try:
+        model, _example_text = torch.hub.load(
+            repo_or_dir="snakers4/silero-models",
+            model="silero_tts",
+            language="ru",
+            speaker=model_name,
+            trust_repo=True,
+        )
+    except Exception as e:
+        raise TtsError(f"Не удалось загрузить модель Silero {model_name}: {e}") from e
+    _SILERO_MODEL_CACHE[model_name] = model
+    return model
+
+
+def speak_silero(text, cfg):
+    if not text.strip():
+        raise TtsError("Нет текста для чтения.")
+    try:
+        import soundfile as sf
+    except Exception as e:
+        raise TtsError(f"soundfile не установлен для Silero: {e}") from e
+
+    model_name = cfg.get("tts_silero_model", "v5_ru")
+    speaker = cfg.get("tts_silero_speaker", "baya")
+    sample_rate = int(cfg.get("tts_silero_sample_rate", 48000))
+    if speaker not in SILERO_SPEAKERS:
+        raise TtsError(f"Голос Silero должен быть одним из: {', '.join(SILERO_SPEAKERS)}.")
+
+    model = _load_silero_model(model_name)
+    try:
+        audio = model.apply_tts(text=text, speaker=speaker, sample_rate=sample_rate)
+    except Exception as e:
+        raise TtsError(f"Silero не смог озвучить текст: {e}") from e
+
+    if hasattr(audio, "detach"):
+        audio = audio.detach().cpu().numpy()
+    out_dir = Path(RUNTIME_DIR) / "tts" / "out"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"silero_{uuid.uuid4().hex}.wav"
+    sf.write(str(out_path), audio, sample_rate)
+    winsound.PlaySound(str(out_path), winsound.SND_FILENAME)
+
+
+def _load_env_values():
+    values = {}
+    for path in (Path(ROOT_DIR) / ".env", Path(RUNTIME_DIR) / ".env"):
+        if not path.exists():
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8-sig").splitlines()
+        except Exception as e:
+            log(f"Не удалось прочитать {path}: {e}")
+            continue
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+            key, value = stripped.split("=", 1)
+            values[key.strip()] = value.strip().strip('"').strip("'")
+    return values
+
+
+def _yandex_credentials():
+    env_file = _load_env_values()
+    api_key = os.environ.get("YANDEX_CLOUD_API_KEY") or env_file.get("YANDEX_CLOUD_API_KEY")
+    folder_id = os.environ.get("YANDEX_CLOUD_FOLDER_ID") or env_file.get("YANDEX_CLOUD_FOLDER_ID")
+    return api_key, folder_id
+
+
+def speak_yandex(text, cfg):
+    if not text.strip():
+        raise TtsError("Нет текста для чтения.")
+    api_key, folder_id = _yandex_credentials()
+    if not api_key or not folder_id:
+        raise TtsError("Yandex TTS не настроен: нужны YANDEX_CLOUD_API_KEY и YANDEX_CLOUD_FOLDER_ID в .env.")
+
+    sample_rate = 48000
+    data = {
+        "text": text,
+        "lang": "ru-RU",
+        "voice": cfg.get("tts_yandex_voice", "alena"),
+        "folderId": folder_id,
+        "speed": str(cfg.get("tts_yandex_speed", 1.0)),
+        "format": "lpcm",
+        "sampleRateHertz": str(sample_rate),
+    }
+    role = cfg.get("tts_yandex_role", "")
+    if role:
+        data["emotion"] = role
+    req = request.Request(
+        "https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize",
+        data=parse.urlencode(data).encode("utf-8"),
+        headers={"Authorization": f"Api-Key {api_key}"},
+        method="POST",
+    )
+    try:
+        with request.urlopen(req, timeout=60) as response:
+            audio = response.read()
+    except error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="replace")
+        raise TtsError(f"Yandex TTS вернул HTTP {e.code}: {detail}") from e
+    except Exception as e:
+        raise TtsError(f"Yandex TTS запрос не удался: {e}") from e
+    if not audio:
+        raise TtsError("Yandex TTS вернул пустой ответ.")
+
+    out_dir = Path(RUNTIME_DIR) / "tts" / "out"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"yandex_{uuid.uuid4().hex}.wav"
+    with wave.open(str(out_path), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes(audio)
+    winsound.PlaySound(str(out_path), winsound.SND_FILENAME)
+
+
 def list_sapi_voices():
     script = (
         "$v = New-Object -ComObject SAPI.SpVoice; "
@@ -214,6 +368,12 @@ def providers_status():
     sapi_voices = list_sapi_voices()
     piper_exe = find_piper_exe()
     piper_model = find_piper_model()
+    yandex_api_key, yandex_folder_id = _yandex_credentials()
+    silero_ready = all(
+        importlib.util.find_spec(name)
+        for name in ("torch", "soundfile", "omegaconf")
+    )
+    silero_model = find_silero_model_file({"tts_silero_model": "v5_ru"})
     return {
         "sapi": {
             "available": bool(sapi_voices),
@@ -231,13 +391,13 @@ def providers_status():
             "label": provider_label("piper"),
         },
         "silero": {
-            "available": bool(importlib.util.find_spec("torch")),
-            "detail": "torch установлен" if importlib.util.find_spec("torch") else "torch/silero не установлены",
+            "available": bool(silero_ready and silero_model),
+            "detail": silero_model if silero_ready and silero_model else "torch/soundfile/omegaconf или v5_ru.pt не найдены",
             "label": provider_label("silero"),
         },
         "yandex": {
-            "available": False,
-            "detail": "Yandex TTS будет подключён отдельным слоем через .env",
+            "available": bool(yandex_api_key and yandex_folder_id),
+            "detail": "YANDEX_CLOUD_API_KEY и YANDEX_CLOUD_FOLDER_ID найдены" if yandex_api_key and yandex_folder_id else "нужны YANDEX_CLOUD_API_KEY и YANDEX_CLOUD_FOLDER_ID в .env",
             "label": provider_label("yandex"),
         },
         "google_old": {
