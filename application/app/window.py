@@ -6,7 +6,7 @@ from tkinter import ttk
 
 import pyperclip
 
-from .tts import list_sapi_voices, providers_status
+from .tts import list_sapi_voices, provider_label, provider_value, providers_status
 from .util import log
 
 _window = None
@@ -40,8 +40,8 @@ def _run_window(service):
     root = tk.Tk()
     _window = root
     root.title("VoiceService")
-    root.geometry("860x620")
-    root.minsize(720, 500)
+    root.geometry("920x660")
+    root.minsize(760, 540)
 
     app = SettingsWindow(root, service)
     app.pack(fill=tk.BOTH, expand=True)
@@ -61,6 +61,8 @@ class SettingsWindow(ttk.Frame):
         self.status_var = tk.StringVar()
         self.count_var = tk.StringVar()
         self.sapi_voices = []
+        self.tts_settings_frame = None
+        self.tts_status_var = tk.StringVar()
         self.provider_status_text = None
 
         self._build_header()
@@ -81,7 +83,7 @@ class SettingsWindow(ttk.Frame):
         tabs.add(self._tab_dictation(tabs), text="Диктовка")
         tabs.add(self._tab_files(tabs), text="Файлы")
         tabs.add(self._tab_tts(tabs), text="Читалка")
-        tabs.add(self._tab_providers(tabs), text="Провайдеры")
+        tabs.add(self._tab_connections(tabs), text="Подключения")
 
     def _tab_results(self, parent):
         frame = ttk.Frame(parent, padding=10)
@@ -97,17 +99,23 @@ class SettingsWindow(ttk.Frame):
 
     def _tab_dictation(self, parent):
         frame = ttk.Frame(parent, padding=10)
-        self._combo(frame, "Язык", "language", ["auto", "ru", "en"], row=0)
-        self._check(frame, "Звуковой сигнал", "beep", row=1)
-        self._number(frame, "Минимальная запись, сек", "min_record_seconds", row=2, width=8)
-        ttk.Separator(frame).grid(row=3, column=0, columnspan=3, sticky="ew", pady=10)
-        self._check(frame, "Нарезать Scroll Lock по паузам", "toggle_chunking_enabled", row=4)
-        self._number(frame, "Минимум до нарезки, сек", "chunk_min_seconds", row=5, width=8)
-        self._number(frame, "Максимум куска, сек", "chunk_max_seconds", row=6, width=8)
-        self._number(frame, "Пауза для резки, сек", "chunk_silence_seconds", row=7, width=8)
-        self._number(frame, "Порог тишины RMS", "chunk_silence_rms", row=8, width=8)
-        self._check(frame, "Вставлять куски сразу", "chunk_insert_partials", row=9)
-        self._text(frame, "Разделитель кусков", "chunk_insert_separator", row=10, width=8)
+        self._combo(frame, "Способ распознавания", "speech_recognition_provider", ["whisper", "yandex", "both"], row=0)
+        self._combo(frame, "Модель Whisper", "model", ["small", "medium", "large-v3"], row=1)
+        self._combo(frame, "Устройство", "device", ["auto", "cuda", "cpu"], row=2)
+        self._combo(frame, "Язык", "language", ["auto", "ru", "en"], row=3)
+        self._number(frame, "Beam size", "beam_size", row=4, width=8)
+        self._number(frame, "Порог тишины Whisper", "no_speech_threshold", row=5, width=8)
+        self._text(frame, "Подсказка слов", "initial_prompt", row=6, width=58)
+        self._check(frame, "Звуковой сигнал", "beep", row=7)
+        self._number(frame, "Минимальная запись, сек", "min_record_seconds", row=8, width=8)
+        ttk.Separator(frame).grid(row=9, column=0, columnspan=3, sticky="ew", pady=10)
+        self._check(frame, "Нарезать Scroll Lock по паузам", "toggle_chunking_enabled", row=10)
+        self._number(frame, "Минимум до нарезки, сек", "chunk_min_seconds", row=11, width=8)
+        self._number(frame, "Максимум куска, сек", "chunk_max_seconds", row=12, width=8)
+        self._number(frame, "Пауза для резки, сек", "chunk_silence_seconds", row=13, width=8)
+        self._number(frame, "Порог тишины RMS", "chunk_silence_rms", row=14, width=8)
+        self._check(frame, "Вставлять куски сразу", "chunk_insert_partials", row=15)
+        self._text(frame, "Разделитель кусков", "chunk_insert_separator", row=16, width=8)
         frame.columnconfigure(1, weight=1)
         return frame
 
@@ -122,39 +130,78 @@ class SettingsWindow(ttk.Frame):
 
     def _tab_tts(self, parent):
         frame = ttk.Frame(parent, padding=10)
-        self._combo(frame, "Провайдер чтения", "tts_provider", ["sapi", "piper", "silero", "rhvoice", "yandex"], row=0)
-        voices = [""] + self._load_sapi_voices()
-        self._combo(frame, "SAPI голос", "tts_voice", voices, row=1)
-        self._number(frame, "Скорость SAPI (-10..10)", "tts_rate", row=2, width=8)
-        self._number(frame, "Громкость SAPI (0..100)", "tts_volume", row=3, width=8)
+        provider_values = [provider_label(v) for v in ("sapi", "piper", "silero", "rhvoice", "yandex", "google_old")]
+        provider_var = tk.StringVar(value=provider_label(self.service.cfg.get("tts_provider", "sapi")))
+        self.vars["tts_provider_label"] = provider_var
+        ttk.Label(frame, text="Читалка").grid(row=0, column=0, sticky="w", pady=4)
+        combo = ttk.Combobox(frame, textvariable=provider_var, values=provider_values, state="readonly")
+        combo.grid(row=0, column=1, sticky="ew", pady=4)
+        combo.bind("<<ComboboxSelected>>", lambda _e: self._save_tts_provider())
+
+        self.tts_settings_frame = ttk.Frame(frame)
+        self.tts_settings_frame.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(8, 0))
+        self.tts_settings_frame.columnconfigure(1, weight=1)
+
+        ttk.Label(frame, textvariable=self.tts_status_var).grid(row=2, column=0, columnspan=3, sticky="w", pady=(10, 0))
         buttons = ttk.Frame(frame)
-        buttons.grid(row=4, column=0, columnspan=3, sticky="w", pady=(12, 0))
-        ttk.Button(buttons, text="Прочитать буфер", command=self.service.speak_clipboard).pack(side=tk.LEFT)
-        ttk.Button(buttons, text="Тестовая фраза", command=self._speak_test).pack(side=tk.LEFT, padx=(8, 0))
-        ttk.Button(buttons, text="Выход", command=self._quit_app).pack(side=tk.LEFT, padx=(8, 0))
+        buttons.grid(row=3, column=0, columnspan=3, sticky="w", pady=(12, 0))
+        ttk.Button(buttons, text="Прочитать буфер", command=lambda: self._run_bg(self.service.speak_clipboard)).pack(side=tk.LEFT)
+        ttk.Button(buttons, text="Тестовая фраза", command=lambda: self._run_bg(self._speak_test)).pack(side=tk.LEFT, padx=(8, 0))
+
         frame.columnconfigure(1, weight=1)
+        self._rebuild_tts_settings()
         return frame
 
-    def _tab_providers(self, parent):
+    def _tab_connections(self, parent):
         frame = ttk.Frame(parent, padding=10)
-        ttk.Label(frame, text="Локальные TTS-кандидаты").grid(row=0, column=0, columnspan=2, sticky="w")
-        self._text(frame, "Piper model path", "tts_piper_model", row=1)
-        self._text(frame, "Silero speaker", "tts_silero_speaker", row=2)
-        self._text(frame, "Robot/fun preset", "tts_robot_preset", row=3)
-        self.provider_status_text = tk.Text(frame, height=7, width=70, wrap="word")
-        self.provider_status_text.grid(row=4, column=0, columnspan=3, sticky="ew", pady=(10, 0))
+        self.provider_status_text = tk.Text(frame, height=10, width=80, wrap="word")
+        self.provider_status_text.pack(fill=tk.BOTH, expand=True)
         self.provider_status_text.configure(state="disabled")
-        ttk.Button(frame, text="Обновить статус", command=self._refresh_provider_status).grid(
-            row=5, column=0, sticky="w", pady=(8, 0)
-        )
-        ttk.Separator(frame).grid(row=6, column=0, columnspan=3, sticky="ew", pady=10)
-        ttk.Label(frame, text="Yandex TTS").grid(row=7, column=0, columnspan=2, sticky="w")
-        self._text(frame, "Yandex voice", "tts_yandex_voice", row=8)
-        self._text(frame, "Yandex role", "tts_yandex_role", row=9)
-        self._number(frame, "Yandex speed", "tts_yandex_speed", row=10, width=8)
-        frame.columnconfigure(1, weight=1)
+        ttk.Button(frame, text="Обновить", command=self._refresh_provider_status).pack(anchor="w", pady=(8, 0))
         self.after(100, self._refresh_provider_status)
         return frame
+
+    def _save_tts_provider(self):
+        label = self.vars["tts_provider_label"].get()
+        self.service.update_setting("tts_provider", provider_value(label))
+        self._rebuild_tts_settings()
+
+    def _rebuild_tts_settings(self):
+        if self.tts_settings_frame is None:
+            return
+        for child in self.tts_settings_frame.winfo_children():
+            child.destroy()
+        provider = self.service.cfg.get("tts_provider", "sapi")
+        self.tts_status_var.set(self._provider_status_line(provider))
+        if provider == "sapi":
+            self._combo(self.tts_settings_frame, "Голос Windows", "tts_voice", [""] + self._load_sapi_voices(), row=0)
+            self._number(self.tts_settings_frame, "Темп речи (-10 медленно, 0 обычно, 10 быстро)", "tts_rate", row=1, width=8)
+            self._number(self.tts_settings_frame, "Громкость, %", "tts_volume", row=2, width=8)
+            return
+        if provider == "piper":
+            self._text(self.tts_settings_frame, "Файл модели Piper (.onnx)", "tts_piper_model", row=0, width=58)
+            return
+        if provider == "silero":
+            self._text(self.tts_settings_frame, "Голос Silero", "tts_silero_speaker", row=0, width=28)
+            return
+        if provider == "rhvoice":
+            self._text(self.tts_settings_frame, "Голос RHVoice", "tts_voice", row=0, width=28)
+            return
+        if provider == "yandex":
+            self._text(self.tts_settings_frame, "Голос Yandex", "tts_yandex_voice", row=0, width=28)
+            self._text(self.tts_settings_frame, "Амплуа/роль", "tts_yandex_role", row=1, width=28)
+            self._number(self.tts_settings_frame, "Скорость", "tts_yandex_speed", row=2, width=8)
+            return
+        if provider == "google_old":
+            self._text(self.tts_settings_frame, "Пресет", "tts_robot_preset", row=0, width=28)
+
+    def _provider_status_line(self, provider):
+        info = providers_status().get(provider)
+        if not info:
+            return ""
+        if info["available"]:
+            return f"Доступно: {info['detail']}"
+        return f"Не подключено: {info['detail']}"
 
     def _load_sapi_voices(self):
         if not self.sapi_voices:
@@ -173,6 +220,8 @@ class SettingsWindow(ttk.Frame):
         except ValueError:
             return
         self.service.update_setting(key, value)
+        if key.startswith("tts_"):
+            self.tts_status_var.set(self._provider_status_line(self.service.cfg.get("tts_provider", "sapi")))
 
     def _text(self, frame, label, key, row, width=34):
         ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w", pady=4)
@@ -226,25 +275,24 @@ class SettingsWindow(ttk.Frame):
     def _speak_selected(self):
         text = self._selected_text()
         if text:
-            self.service.speak_text(text)
+            self._run_bg(lambda: self.service.speak_text(text))
 
     def _speak_test(self):
         self.service.speak_text("Проверка чтения VoiceService. Один, два, три.")
 
-    def _quit_app(self):
-        self.service.quit_cleanly()
-        self.after(200, lambda: __import__("os")._exit(0))
+    def _run_bg(self, fn):
+        threading.Thread(target=fn, daemon=True).start()
 
     def _refresh_provider_status(self):
         if self.provider_status_text is None:
             return
         lines = []
         for name, info in providers_status().items():
-            mark = "OK" if info["available"] else "--"
-            lines.append(f"{mark} {name}: {info['detail']}")
+            mark = "Доступно" if info["available"] else "Не подключено"
+            lines.append(f"{info['label']}\n  {mark}: {info['detail']}")
         self.provider_status_text.configure(state="normal")
         self.provider_status_text.delete("1.0", tk.END)
-        self.provider_status_text.insert("1.0", "\n".join(lines))
+        self.provider_status_text.insert("1.0", "\n\n".join(lines))
         self.provider_status_text.configure(state="disabled")
 
     def _tick(self):

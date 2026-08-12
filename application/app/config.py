@@ -18,6 +18,7 @@ DEFAULT_CONFIG = {
     "model": "medium",            # small | medium | large-v3
     "device": "auto",             # auto | cuda | cpu
     "language": "auto",           # auto | ru | en
+    "speech_recognition_provider": "whisper",  # whisper | yandex | both
 
     # Хоткеи.
     #  ptt_key   — «зажать-и-говорить». Если во время удержания нажата ЛЮБАЯ другая
@@ -55,7 +56,7 @@ DEFAULT_CONFIG = {
 
     # Читалка текста. Провайдеры добавляются адаптерами; SAPI доступен на Windows без
     # тяжёлых моделей, остальные можно подключать и сравнивать отдельно.
-    "tts_provider": "sapi",        # sapi | piper | silero | rhvoice | yandex
+    "tts_provider": "sapi",        # sapi | piper | silero | rhvoice | yandex | google_old
     "tts_voice": "",
     "tts_rate": 0,                # SAPI: -10..10
     "tts_volume": 100,            # SAPI: 0..100

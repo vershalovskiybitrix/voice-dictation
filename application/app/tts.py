@@ -14,14 +14,35 @@ class TtsError(RuntimeError):
     pass
 
 
+PROVIDER_LABELS = {
+    "sapi": "Windows: системный голос",
+    "piper": "Piper: локальная нейросетевая читалка",
+    "silero": "Silero: локальная русская модель",
+    "rhvoice": "RHVoice: лёгкая офлайн-читалка",
+    "yandex": "Yandex SpeechKit: облачная читалка",
+    "google_old": "Старый Google-робот: не подключён",
+}
+
+
+def provider_label(provider):
+    return PROVIDER_LABELS.get(provider, provider)
+
+
+def provider_value(label):
+    for value, known_label in PROVIDER_LABELS.items():
+        if known_label == label:
+            return value
+    return label
+
+
 def speak_text(text, cfg):
     provider = cfg.get("tts_provider", "sapi")
     if provider == "sapi":
         return speak_sapi(text, cfg)
     if provider == "rhvoice":
         return speak_rhvoice(text, cfg)
-    if provider in ("piper", "silero", "yandex"):
-        raise TtsError(f"TTS-провайдер {provider!r} пока не подключён.")
+    if provider in ("piper", "silero", "yandex", "google_old"):
+        raise TtsError(f"{provider_label(provider)} пока не подключён.")
     raise TtsError(f"Неизвестный TTS-провайдер: {provider!r}")
 
 
@@ -59,7 +80,7 @@ def speak_sapi(text, cfg):
                 "if ($match.Count -gt 0) { $voice.Voice = $match[0] }",
             ]
         )
-    script.append(f'[void]$voice.Speak("{escaped}", 1)')
+    script.append(f'[void]$voice.Speak("{escaped}", 0)')
     completed = subprocess.run(
         ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "; ".join(script)],
         text=True,
@@ -123,21 +144,31 @@ def providers_status():
         "sapi": {
             "available": bool(sapi_voices),
             "detail": ", ".join(sapi_voices) if sapi_voices else "SAPI voices не найдены",
+            "label": provider_label("sapi"),
         },
         "rhvoice": {
             "available": bool(shutil.which("RHVoice-client") or shutil.which("rhvoice-client")),
             "detail": shutil.which("RHVoice-client") or shutil.which("rhvoice-client") or "RHVoice-client не найден",
+            "label": provider_label("rhvoice"),
         },
         "piper": {
             "available": bool(shutil.which("piper")),
             "detail": shutil.which("piper") or "piper CLI не найден",
+            "label": provider_label("piper"),
         },
         "silero": {
             "available": bool(importlib.util.find_spec("torch")),
             "detail": "torch установлен" if importlib.util.find_spec("torch") else "torch/silero не установлены",
+            "label": provider_label("silero"),
         },
         "yandex": {
             "available": False,
             "detail": "Yandex TTS будет подключён отдельным слоем через .env",
+            "label": provider_label("yandex"),
+        },
+        "google_old": {
+            "available": False,
+            "detail": "старый Google-голос пока не найден/не подключён",
+            "label": provider_label("google_old"),
         },
     }
