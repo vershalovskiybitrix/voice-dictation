@@ -60,6 +60,7 @@ DEFAULT_CONFIG = {
     "tts_voice": "",
     "tts_rate": 0,                # SAPI: -10..10
     "tts_volume": 100,            # SAPI: 0..100
+    "tts_piper_exe": "",
     "tts_piper_model": "",
     "tts_silero_speaker": "",
     "tts_yandex_voice": "alena",
@@ -95,7 +96,7 @@ def load_config():
     cfg = dict(DEFAULT_CONFIG)
     if os.path.exists(CONFIG_PATH):
         try:
-            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+            with open(CONFIG_PATH, "r", encoding="utf-8-sig") as f:
                 cfg.update(json.load(f))
         except Exception as e:
             log(f"Не удалось прочитать config.json, использую значения по умолчанию: {e}")

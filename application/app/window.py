@@ -179,7 +179,8 @@ class SettingsWindow(ttk.Frame):
             self._number(self.tts_settings_frame, "Громкость, %", "tts_volume", row=2, width=8)
             return
         if provider == "piper":
-            self._text(self.tts_settings_frame, "Файл модели Piper (.onnx)", "tts_piper_model", row=0, width=58)
+            self._text(self.tts_settings_frame, "Piper.exe", "tts_piper_exe", row=0, width=58)
+            self._text(self.tts_settings_frame, "Файл модели Piper (.onnx)", "tts_piper_model", row=1, width=58)
             return
         if provider == "silero":
             self._text(self.tts_settings_frame, "Голос Silero", "tts_silero_speaker", row=0, width=28)

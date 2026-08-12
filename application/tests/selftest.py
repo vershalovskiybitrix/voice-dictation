@@ -239,6 +239,7 @@ def test_config():
     check("chunk separator = пробел", cfg["chunk_insert_separator"] == " ")
     check("tts_provider есть", "tts_provider" in cfg)
     check("tts_volume есть", "tts_volume" in cfg)
+    check("tts_piper_exe есть", "tts_piper_exe" in cfg)
 
 
 def test_imports():
