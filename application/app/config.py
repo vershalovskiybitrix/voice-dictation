@@ -53,6 +53,19 @@ DEFAULT_CONFIG = {
     "chunk_insert_partials": True,
     "chunk_insert_separator": " ",
 
+    # Читалка текста. Провайдеры добавляются адаптерами; SAPI доступен на Windows без
+    # тяжёлых моделей, остальные можно подключать и сравнивать отдельно.
+    "tts_provider": "sapi",        # sapi | piper | silero | rhvoice | yandex
+    "tts_voice": "",
+    "tts_rate": 0,                # SAPI: -10..10
+    "tts_volume": 100,            # SAPI: 0..100
+    "tts_piper_model": "",
+    "tts_silero_speaker": "",
+    "tts_yandex_voice": "alena",
+    "tts_yandex_role": "",
+    "tts_yandex_speed": 1.0,
+    "tts_robot_preset": "",
+
     "beep": True,
     "min_record_seconds": 0.4,    # короче — игнор (защита от случайных нажатий)
     "no_speech_threshold": 0.6,   # сегменты с no_speech_prob выше — отбрасываем

@@ -16,6 +16,7 @@ from .engine import Transcriber, load_model
 from .files import save_recording, watch_inbox
 from .hotkeys import HotkeyManager
 from .output import Inserter
+from .tts import TtsError, speak_clipboard, speak_text
 from .util import log
 
 
@@ -235,6 +236,28 @@ class VoiceService:
         self.file_insert = value
         self.cfg["file_insert_at_cursor"] = value
         save_config(self.cfg)
+
+    def update_setting(self, key, value):
+        self.cfg[key] = value
+        if key == "language":
+            self.language = value
+        elif key == "file_insert_at_cursor":
+            self.file_insert = bool(value)
+        save_config(self.cfg)
+
+    def speak_text(self, text):
+        try:
+            speak_text(text, self.cfg)
+        except TtsError as e:
+            log(f"Ошибка чтения: {e}")
+            self._notify(str(e), "VoiceService TTS")
+
+    def speak_clipboard(self):
+        try:
+            speak_clipboard(self.cfg)
+        except TtsError as e:
+            log(f"Ошибка чтения буфера: {e}")
+            self._notify(str(e), "VoiceService TTS")
 
     def handle_file(self, path):
         """Распознаёт аудиофайл (любой источник) → буфер (+ опц. вставка) + уведомление."""

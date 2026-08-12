@@ -206,6 +206,12 @@ def test_window_import():
     check("window импортируется", True)
 
 
+def test_tts_import():
+    print("test: TTS модуль")
+    import app.tts  # noqa
+    check("tts импортируется", True)
+
+
 def test_history():
     print("test: история последних распознаваний")
     import collections
@@ -231,11 +237,13 @@ def test_config():
     check("chunking включен по умолчанию", cfg["toggle_chunking_enabled"] is True)
     check("chunk partial insert включен по умолчанию", cfg["chunk_insert_partials"] is True)
     check("chunk separator = пробел", cfg["chunk_insert_separator"] == " ")
+    check("tts_provider есть", "tts_provider" in cfg)
+    check("tts_volume есть", "tts_volume" in cfg)
 
 
 def test_imports():
     print("test: импорт всех модулей")
-    import app.capture, app.engine, app.files, app.output, app.service, app.tray  # noqa
+    import app.capture, app.engine, app.files, app.output, app.service, app.tray, app.tts  # noqa
     import sounddevice, pyperclip, pystray  # noqa
     from PIL import Image  # noqa
     check("все модули импортированы", True)
@@ -276,6 +284,7 @@ def main():
     test_recordings_cache()
     test_chunking()
     test_window_import()
+    test_tts_import()
     test_history()
     test_config()
     if "--model" in sys.argv:
