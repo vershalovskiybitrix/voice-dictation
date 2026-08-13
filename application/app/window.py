@@ -9,7 +9,6 @@ import pyperclip
 from .tts import (
     SILERO_SPEAKERS,
     YANDEX_VOICES,
-    list_sapi_voices,
     provider_label,
     provider_value,
     providers_status,
@@ -67,7 +66,6 @@ class SettingsWindow(ttk.Frame):
         self.history_list = None
         self.status_var = tk.StringVar()
         self.count_var = tk.StringVar()
-        self.sapi_voices = []
         self.tts_settings_frame = None
         self.tts_status_var = tk.StringVar()
         self.provider_status_text = None
@@ -141,8 +139,12 @@ class SettingsWindow(ttk.Frame):
         provider_frame = ttk.LabelFrame(frame, text="Провайдер чтения")
         provider_frame.grid(row=0, column=0, sticky="ew")
         provider_frame.columnconfigure(1, weight=1)
-        provider_values = [provider_label(v) for v in ("sapi", "piper", "silero", "yandex", "google_old")]
-        provider_var = tk.StringVar(value=provider_label(self.service.cfg.get("tts_provider", "sapi")))
+        provider_values = [provider_label(v) for v in ("piper", "silero", "yandex", "google_old")]
+        provider = self.service.cfg.get("tts_provider", "yandex")
+        if provider == "sapi":
+            provider = "yandex"
+            self.service.update_setting("tts_provider", provider)
+        provider_var = tk.StringVar(value=provider_label(provider))
         self.vars["tts_provider_label"] = provider_var
         ttk.Label(provider_frame, text="Читалка").grid(row=0, column=0, sticky="w", pady=4)
         combo = ttk.Combobox(provider_frame, textvariable=provider_var, values=provider_values, state="readonly")
@@ -191,13 +193,8 @@ class SettingsWindow(ttk.Frame):
             return
         for child in self.tts_settings_frame.winfo_children():
             child.destroy()
-        provider = self.service.cfg.get("tts_provider", "sapi")
+        provider = self.service.cfg.get("tts_provider", "yandex")
         self.tts_status_var.set(self._provider_status_line(provider))
-        if provider == "sapi":
-            self._combo(self.tts_settings_frame, "Голос Windows", "tts_voice", [""] + self._load_sapi_voices(), row=0)
-            self._number(self.tts_settings_frame, "Темп речи (-10 медленно, 0 обычно, 10 быстро)", "tts_rate", row=1, width=8)
-            self._number(self.tts_settings_frame, "Громкость, %", "tts_volume", row=2, width=8)
-            return
         if provider == "piper":
             self._text(self.tts_settings_frame, "Piper.exe", "tts_piper_exe", row=0, width=58)
             self._text(self.tts_settings_frame, "Файл модели Piper (.onnx)", "tts_piper_model", row=1, width=58)
@@ -227,6 +224,7 @@ class SettingsWindow(ttk.Frame):
             return
         if provider == "google_old":
             self._combo(self.tts_settings_frame, "Язык Google", "tts_google_lang", ["ru", "en"], row=0)
+            self._number(self.tts_settings_frame, "Скорость Google", "tts_google_speed", row=1, width=8)
 
     def _provider_status_line(self, provider):
         info = providers_status().get(provider)
@@ -235,11 +233,6 @@ class SettingsWindow(ttk.Frame):
         if info["available"]:
             return f"Доступно: {info['detail']}"
         return f"Не подключено: {info['detail']}"
-
-    def _load_sapi_voices(self):
-        if not self.sapi_voices:
-            self.sapi_voices = list_sapi_voices()
-        return self.sapi_voices
 
     def _get_var(self, key):
         if key not in self.vars:
@@ -254,7 +247,7 @@ class SettingsWindow(ttk.Frame):
             return
         self.service.update_setting(key, value)
         if key.startswith("tts_"):
-            self.tts_status_var.set(self._provider_status_line(self.service.cfg.get("tts_provider", "sapi")))
+            self.tts_status_var.set(self._provider_status_line(self.service.cfg.get("tts_provider", "yandex")))
 
     def _text(self, frame, label, key, row, width=34, sticky="ew"):
         ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w", pady=4)

@@ -1,7 +1,7 @@
 """Quick TTS smoke test.
 
     python tts_test.py "Текст для проверки"
-    python tts_test.py --provider sapi "Текст"
+    python tts_test.py --provider yandex "Текст"
 """
 
 import argparse
@@ -11,21 +11,16 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app.config import load_config
-from app.tts import TtsError, list_sapi_voices, providers_status, speak_text
+from app.tts import TtsError, providers_status, speak_text
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("text", nargs="?", default="Проверка чтения VoiceService.")
     parser.add_argument("--provider", default=None)
-    parser.add_argument("--voices", action="store_true")
     parser.add_argument("--status", action="store_true")
     args = parser.parse_args(argv)
 
-    if args.voices:
-        for voice in list_sapi_voices():
-            print(voice)
-        return 0
     if args.status:
         for name, info in providers_status().items():
             mark = "OK" if info["available"] else "--"

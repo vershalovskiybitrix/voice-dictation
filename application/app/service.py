@@ -254,7 +254,7 @@ class VoiceService:
         if not text or not text.strip():
             self._notify("Не вижу текст для чтения.", "VoiceService TTS")
             return
-        provider = self.cfg.get("tts_provider", "sapi")
+        provider = self.cfg.get("tts_provider", "yandex")
         self.set_status(f"Speaking: {provider}")
         log(f"TTS start: {provider_label(provider)}")
         try:
@@ -269,7 +269,7 @@ class VoiceService:
             self.set_status("Recording" if self.recording else "Idle")
 
     def speak_clipboard(self):
-        provider = self.cfg.get("tts_provider", "sapi")
+        provider = self.cfg.get("tts_provider", "yandex")
         self.set_status(f"Speaking: {provider}")
         log(f"TTS clipboard start: {provider_label(provider)}")
         try:

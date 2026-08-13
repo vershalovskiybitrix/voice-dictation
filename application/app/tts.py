@@ -22,7 +22,6 @@ class TtsError(RuntimeError):
 
 
 PROVIDER_LABELS = {
-    "sapi": "Windows SAPI: временный системный голос",
     "piper": "Piper: локальная нейросетевая читалка",
     "silero": "Silero: локальная русская модель",
     "yandex": "Yandex SpeechKit: облачная читалка",
@@ -56,9 +55,9 @@ def provider_value(label):
 
 
 def speak_text(text, cfg):
-    provider = cfg.get("tts_provider", "sapi")
+    provider = cfg.get("tts_provider", "yandex")
     if provider == "sapi":
-        return speak_sapi(text, cfg)
+        provider = "yandex"
     if provider == "piper":
         return speak_piper(text, cfg)
     if provider == "silero":
@@ -78,42 +77,6 @@ def speak_clipboard(cfg):
     if not text.strip():
         raise TtsError("Буфер пуст.")
     speak_text(text, cfg)
-
-
-def speak_sapi(text, cfg):
-    if not text.strip():
-        raise TtsError("Нет текста для чтения.")
-    escaped = (
-        text.replace("`", "``")
-        .replace("$", "`$")
-        .replace('"', '`"')
-    )
-    voice = cfg.get("tts_voice", "")
-    rate = int(cfg.get("tts_rate", 0))
-    volume = int(cfg.get("tts_volume", 100))
-    script = [
-        "$voice = New-Object -ComObject SAPI.SpVoice",
-        f"$voice.Rate = {rate}",
-        f"$voice.Volume = {volume}",
-    ]
-    if voice:
-        script.extend(
-            [
-                "$tokens = $voice.GetVoices()",
-                f"$match = @($tokens | Where-Object {{ $_.GetDescription() -eq \"{voice}\" }})",
-                "if ($match.Count -gt 0) { $voice.Voice = $match[0] }",
-            ]
-        )
-    script.append(f'[void]$voice.Speak("{escaped}", 0)')
-    completed = subprocess.run(
-        ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "; ".join(script)],
-        text=True,
-        capture_output=True,
-        check=False,
-        creationflags=0x08000000 if sys.platform == "win32" else 0,
-    )
-    if completed.returncode != 0:
-        raise TtsError(completed.stderr.strip() or "SAPI вернул ошибку.")
 
 
 def _existing_path(value):
@@ -361,10 +324,25 @@ def speak_google_old(text, cfg):
                 raise TtsError(f"Google-robot вернул разные sample rate: {sample_rate} и {current_rate}.")
             parts.append(audio)
         audio = np.concatenate(parts) if len(parts) > 1 else parts[0]
+        audio = _change_audio_speed(audio, float(cfg.get("tts_google_speed", 1.0)))
         sf.write(str(wav_path), audio, sample_rate)
     except Exception as e:
         raise TtsError(f"Google-robot TTS не смог озвучить текст: {e}") from e
     winsound.PlaySound(str(wav_path), winsound.SND_FILENAME)
+
+
+def _change_audio_speed(audio, speed):
+    if speed <= 0:
+        raise TtsError("Скорость Google TTS должна быть больше 0.")
+    if abs(speed - 1.0) < 0.01:
+        return audio
+    speed = max(0.5, min(2.0, speed))
+    try:
+        from scipy import signal
+    except Exception as e:
+        raise TtsError(f"scipy не установлен для изменения скорости Google TTS: {e}") from e
+    target_len = max(1, int(len(audio) / speed))
+    return signal.resample(audio, target_len, axis=0)
 
 
 def _split_google_tts_text(text, limit=180):
@@ -401,29 +379,7 @@ def _download_google_translate_tts(text, lang, tld, out_path):
     out_path.write_bytes(data)
 
 
-def list_sapi_voices():
-    script = (
-        "$v = New-Object -ComObject SAPI.SpVoice; "
-        "$v.GetVoices() | ForEach-Object { $_.GetDescription() }"
-    )
-    try:
-        completed = subprocess.run(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
-            text=True,
-            capture_output=True,
-            check=False,
-            creationflags=0x08000000 if sys.platform == "win32" else 0,
-        )
-    except Exception as e:
-        log(f"Не удалось получить SAPI voices: {e}")
-        return []
-    if completed.returncode != 0:
-        return []
-    return [line.strip() for line in completed.stdout.splitlines() if line.strip()]
-
-
 def providers_status():
-    sapi_voices = list_sapi_voices()
     piper_exe = find_piper_exe()
     piper_model = find_piper_model()
     yandex_api_key, yandex_folder_id = _yandex_credentials()
@@ -433,11 +389,6 @@ def providers_status():
     )
     silero_model = find_silero_model_file({"tts_silero_model": "v5_ru"})
     return {
-        "sapi": {
-            "available": bool(sapi_voices),
-            "detail": ", ".join(sapi_voices) if sapi_voices else "SAPI voices не найдены",
-            "label": provider_label("sapi"),
-        },
         "piper": {
             "available": bool(piper_exe and piper_model),
             "detail": f"{piper_exe}; {piper_model}" if piper_exe and piper_model else "piper.exe или .onnx модель не найдены",

@@ -61,13 +61,8 @@ DEFAULT_CONFIG = {
     "chunk_strip_trailing_ellipsis": True,
     "history_persist_count": 50,
 
-    # Читалка текста. Провайдеры добавляются адаптерами; SAPI доступен на Windows без
-    # тяжёлых моделей, остальные можно подключать и сравнивать отдельно.
-    "tts_provider": "sapi",        # sapi | piper | silero | yandex | google_old
-    "tts_sapi_remove_later": True,
-    "tts_voice": "",
-    "tts_rate": 0,                # SAPI: -10..10
-    "tts_volume": 100,            # SAPI: 0..100
+    # Читалка текста. Windows SAPI удалён из проекта из-за непригодного качества.
+    "tts_provider": "yandex",      # piper | silero | yandex | google_old
     "tts_piper_exe": "",
     "tts_piper_model": "",
     "tts_silero_model": "v5_ru",
@@ -78,6 +73,7 @@ DEFAULT_CONFIG = {
     "tts_yandex_speed": 1.0,
     "tts_google_lang": "ru",
     "tts_google_tld": "com",
+    "tts_google_speed": 1.0,
 
     "beep": True,
     "min_record_seconds": 0.4,    # короче — игнор (защита от случайных нажатий)
@@ -119,6 +115,10 @@ def load_config():
             log(f"Создан config.json со значениями по умолчанию: {CONFIG_PATH}")
         except Exception as e:
             log(f"Не удалось создать config.json: {e}")
+    if cfg.get("tts_provider") == "sapi":
+        cfg["tts_provider"] = "yandex"
+    for key in ("tts_sapi_remove_later", "tts_voice", "tts_rate", "tts_volume"):
+        cfg.pop(key, None)
     return cfg
 
 
