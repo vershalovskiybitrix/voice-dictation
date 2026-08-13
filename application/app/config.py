@@ -64,6 +64,7 @@ DEFAULT_CONFIG = {
     # Читалка текста. Провайдеры добавляются адаптерами; SAPI доступен на Windows без
     # тяжёлых моделей, остальные можно подключать и сравнивать отдельно.
     "tts_provider": "sapi",        # sapi | piper | silero | yandex | google_old
+    "tts_sapi_remove_later": True,
     "tts_voice": "",
     "tts_rate": 0,                # SAPI: -10..10
     "tts_volume": 100,            # SAPI: 0..100
@@ -78,7 +79,6 @@ DEFAULT_CONFIG = {
     "tts_google_lang": "ru",
     "tts_google_tld": "com",
     "tts_robot_preset": "test-delete-later",
-    "tts_google_old_remove_later": True,
 
     "beep": True,
     "min_record_seconds": 0.4,    # короче — игнор (защита от случайных нажатий)

@@ -22,12 +22,12 @@ class TtsError(RuntimeError):
 
 
 PROVIDER_LABELS = {
-    "sapi": "Windows: системный голос",
+    "sapi": "Windows SAPI: временный системный голос",
     "piper": "Piper: локальная нейросетевая читалка",
     "silero": "Silero: локальная русская модель",
     "rhvoice": "RHVoice: лёгкая офлайн-читалка",
     "yandex": "Yandex SpeechKit: облачная читалка",
-    "google_old": "Старый Google-робот: тестовый, к удалению",
+    "google_old": "Старый Google-робот: robot/fun",
 }
 
 SILERO_SPEAKERS = ["aidar", "baya", "kseniya", "eugene", "xenia"]
