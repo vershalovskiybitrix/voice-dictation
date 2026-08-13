@@ -254,6 +254,16 @@ def test_history():
     check("пустое не попало", "" not in svc.history)
 
 
+def test_partial_text_cleanup():
+    print("test: очистка троеточия на стыке chunk-кусков")
+    from app.service import VoiceService
+    svc = VoiceService.__new__(VoiceService)
+    svc.cfg = {"chunk_strip_trailing_ellipsis": True}
+    check("убирает три точки", svc._prepare_partial_text("Я задумался...") == "Я задумался")
+    check("убирает символ многоточия", svc._prepare_partial_text("Я задумался…") == "Я задумался")
+    check("обычную точку не трогает", svc._prepare_partial_text("Конец.") == "Конец.")
+
+
 def test_config():
     print("test: конфиг")
     cfg = load_config()
@@ -272,6 +282,8 @@ def test_config():
     check("tts_yandex_voice есть", "tts_yandex_voice" in cfg)
     check("tts_google_lang есть", "tts_google_lang" in cfg)
     check("read_selected_key есть", "read_selected_key" in cfg)
+    check("chunk_strip_trailing_ellipsis есть", "chunk_strip_trailing_ellipsis" in cfg)
+    check("history_persist_count есть", "history_persist_count" in cfg)
 
 
 def test_imports():
@@ -320,6 +332,7 @@ def main():
     test_window_import()
     test_tts_import()
     test_history()
+    test_partial_text_cleanup()
     test_config()
     if "--model" in sys.argv:
         test_model()

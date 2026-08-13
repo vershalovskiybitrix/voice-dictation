@@ -27,10 +27,27 @@ PROVIDER_LABELS = {
     "silero": "Silero: локальная русская модель",
     "rhvoice": "RHVoice: лёгкая офлайн-читалка",
     "yandex": "Yandex SpeechKit: облачная читалка",
-    "google_old": "Старый Google-робот: не подключён",
+    "google_old": "Старый Google-робот: тестовый, к удалению",
 }
 
 SILERO_SPEAKERS = ["aidar", "baya", "kseniya", "eugene", "xenia"]
+YANDEX_VOICES = {
+    "alena": ["neutral", "good"],
+    "filipp": [""],
+    "ermil": ["neutral", "good"],
+    "jane": ["neutral", "good", "evil"],
+    "omazh": ["neutral", "evil"],
+    "zahar": ["neutral", "good"],
+    "dasha": ["neutral", "good", "friendly"],
+    "julia": ["neutral", "strict"],
+    "lera": ["neutral", "friendly"],
+    "masha": ["good", "strict", "friendly"],
+    "marina": ["neutral", "whisper", "friendly"],
+    "alexander": ["neutral", "good"],
+    "kirill": ["neutral", "strict", "good"],
+    "anton": ["neutral", "good"],
+    "madi_ru": [""],
+}
 _SILERO_MODEL_CACHE = {}
 
 
@@ -187,6 +204,7 @@ def speak_piper(text, cfg):
         [exe, "--model", model, "--output_file", str(out_path)],
         input=text,
         text=True,
+        encoding="utf-8",
         capture_output=True,
         check=False,
         creationflags=0x08000000 if sys.platform == "win32" else 0,
@@ -199,7 +217,7 @@ def speak_piper(text, cfg):
 
 
 def _silero_cache_model_path(model_name):
-    torch_home = Path(os.environ.get("TORCH_HOME") or Path.home() / ".cache" / "torch")
+    torch_home = Path(RUNTIME_DIR) / "tts" / "silero" / "torch"
     return (
         torch_home
         / "hub"
@@ -227,6 +245,10 @@ def _load_silero_model(model_name):
     except Exception as e:
         raise TtsError(f"torch не установлен для Silero: {e}") from e
     try:
+        torch_home = Path(RUNTIME_DIR) / "tts" / "silero" / "torch"
+        torch_home.mkdir(parents=True, exist_ok=True)
+        os.environ["TORCH_HOME"] = str(torch_home)
+        torch.hub.set_dir(str(torch_home / "hub"))
         model, _example_text = torch.hub.load(
             repo_or_dir="snakers4/silero-models",
             model="silero_tts",
@@ -449,11 +471,6 @@ def providers_status():
             "available": bool(sapi_voices),
             "detail": ", ".join(sapi_voices) if sapi_voices else "SAPI voices не найдены",
             "label": provider_label("sapi"),
-        },
-        "rhvoice": {
-            "available": bool(shutil.which("RHVoice-client") or shutil.which("rhvoice-client")),
-            "detail": shutil.which("RHVoice-client") or shutil.which("rhvoice-client") or "RHVoice-client не найден",
-            "label": provider_label("rhvoice"),
         },
         "piper": {
             "available": bool(piper_exe and piper_model),

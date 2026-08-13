@@ -1,13 +1,16 @@
-# Локальные и облачные читалки для VoiceService
+# Читалки VoiceService
 
-## Текущий статус
+## Рабочие провайдеры
 
-- `sapi`: работает через Windows SAPI. Сейчас найдены голоса `Microsoft Irina Desktop - Russian` и `Microsoft Zira Desktop - English (United States)`.
-- `piper`: подключён локально. Бинарник и модель лежат в `runtime/tts/piper`, активная модель: `ru_RU-irina-medium`.
-- `silero`: подключён локально через PyTorch Hub. Активная модель: `v5_ru`, голоса: `aidar`, `baya`, `kseniya`, `eugene`, `xenia`.
-- `yandex`: подключён через Yandex SpeechKit API v1. Секреты читаются из `.env`, в git не добавляются.
-- `rhvoice`: отдельный `RHVoice-client` не найден. На Windows этот вариант разумнее использовать через SAPI-голоса, если RHVoice будет установлен в систему.
-- `google_old`: подключён как экспериментальный robot/fun-режим через старый endpoint Google Translate TTS. Это не официальный Google Cloud TTS и может зависеть от доступности веб-сервиса.
+- `sapi`: системные Windows-голоса. Используется как простой fallback.
+- `piper`: локальный Piper в `runtime/tts/piper`. После фикса stdin текст передаётся в `piper.exe` как UTF-8.
+- `silero`: локальный Silero. PyTorch Hub cache и модель должны лежать в `runtime/tts/silero`, а не в профиле пользователя на диске C.
+- `yandex`: Yandex SpeechKit. Секреты читаются из `.env`; голоса и роли выбираются из списков.
+
+## Тестовые / проблемные
+
+- `google_old`: тестовый Google Translate robot. Работает стабильно, но качество непригодное; запланирован к удалению.
+- `rhvoice`: не отдельный portable-провайдер. На Windows RHVoice ставится как SAPI voice installer; после системной установки голос должен появиться в списке SAPI.
 
 ## Проверка
 
@@ -16,26 +19,13 @@ D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py -
 D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py --provider piper "Проверка Piper."
 D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py --provider silero "Проверка Silero."
 D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py --provider yandex "Проверка Yandex."
-D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py --provider google_old "Проверка Google robot."
 ```
 
-## Секреты
-
-Yandex TTS использует только имена переменных:
+## Yandex `.env`
 
 ```text
 YANDEX_CLOUD_API_KEY
 YANDEX_CLOUD_FOLDER_ID
 ```
 
-Значения должны лежать в `runtime/.env` или корневом `.env`. В Markdown и git их не добавлять.
-
-## Примечания
-
-Piper сейчас самый простой локальный путь: маленький бинарник, отдельная ONNX-модель, без тяжёлого Python-стека.
-
-Silero тяжелее: нужны `torch`, `soundfile`, `scipy`, `omegaconf`, а модель хранится в cache PyTorch Hub. Зато есть несколько русских голосов для сравнения.
-
-Yandex нужен как облачный fallback и эталон качества. По умолчанию приложение оставлено на локальном провайдере, чтобы чтение не зависело от сети и денег.
-
-Google-robot добавлен именно как забавный/ностальгический пресет. Для важных задач лучше сравнивать Piper, Silero и Yandex.
+Значения не хранить в Markdown и не коммитить.

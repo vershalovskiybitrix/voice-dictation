@@ -1,6 +1,7 @@
 """Оркестрация: состояние записи, реакции на хоткеи, запуск трея."""
 
 import collections
+import json
 import os
 import threading
 import time
@@ -12,7 +13,7 @@ from pynput import keyboard
 
 from .chunking import should_cut
 from .capture import Recorder
-from .config import SAMPLE_RATE, inbox_dir, load_config, recordings_dir, save_config
+from .config import RUNTIME_DIR, SAMPLE_RATE, inbox_dir, load_config, recordings_dir, save_config
 from .engine import Transcriber, load_model
 from .files import save_recording, watch_inbox
 from .hotkeys import HotkeyManager
@@ -212,11 +213,12 @@ class VoiceService:
             if not partial or self.cfg.get("chunk_insert_partials", False):
                 insert_text = text
                 if partial:
+                    insert_text = self._prepare_partial_text(insert_text)
                     insert_text += self.cfg.get("chunk_insert_separator", " ")
                 self.inserter.insert(insert_text)
             elif partial:
                 try:
-                    pyperclip.copy(text + self.cfg.get("chunk_insert_separator", " "))
+                    pyperclip.copy(self._prepare_partial_text(text) + self.cfg.get("chunk_insert_separator", " "))
                 except Exception:
                     pass
         else:
@@ -346,6 +348,34 @@ class VoiceService:
         """Кладёт результат в историю (новые первыми)."""
         if text:
             self.history.appendleft(text)
+            self._persist_history_text(text)
+
+    def _persist_history_text(self, text):
+        try:
+            os.makedirs(RUNTIME_DIR, exist_ok=True)
+            path = os.path.join(RUNTIME_DIR, "recognition_history.jsonl")
+            lines = []
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8-sig") as f:
+                    lines = [line for line in f.read().splitlines() if line.strip()]
+            lines.append(json.dumps({"ts": time.time(), "text": text}, ensure_ascii=False))
+            keep = int(getattr(self, "cfg", {}).get("history_persist_count", 50))
+            if keep > 0:
+                lines = lines[-keep:]
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines) + ("\n" if lines else ""))
+        except Exception as e:
+            log(f"Не удалось сохранить историю распознаваний: {e}")
+
+    def _prepare_partial_text(self, text):
+        if not self.cfg.get("chunk_strip_trailing_ellipsis", True):
+            return text
+        stripped = text.rstrip()
+        while stripped.endswith("…"):
+            stripped = stripped[:-1].rstrip()
+        while stripped.endswith("..."):
+            stripped = stripped[:-3].rstrip()
+        return stripped
 
     def ignore_keys(self):
         """Игнорировать клавиши, пока сами шлём Ctrl+V (иначе отменим свою же диктовку)."""
