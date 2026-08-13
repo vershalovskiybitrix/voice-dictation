@@ -6,6 +6,8 @@ import sys
 import shutil
 import importlib.util
 import re
+import threading
+import time
 import uuid
 import winsound
 import wave
@@ -20,6 +22,112 @@ from .util import log
 
 class TtsError(RuntimeError):
     pass
+
+
+class TtsPlaybackController:
+    def __init__(self):
+        self._lock = threading.RLock()
+        self._stop_event = threading.Event()
+        self._session = 0
+
+    def stop(self):
+        with self._lock:
+            self._session += 1
+            self._stop_event.set()
+        try:
+            winsound.PlaySound(None, winsound.SND_PURGE)
+        except Exception:
+            pass
+
+    def speak(self, text, cfg):
+        text = _prepare_tts_text(text)
+        with self._lock:
+            self.stop()
+            self._stop_event = threading.Event()
+            self._session += 1
+            session = self._session
+        chunks = _split_reading_text(text, int(cfg.get("tts_chunk_chars", 280)))
+        next_job = None
+        for index, chunk in enumerate(chunks):
+            if not self._is_session_active(session):
+                break
+            if next_job is not None:
+                result = next_job.result(self, session)
+                next_job = None
+                if result is None:
+                    break
+                wav_path, duration = result
+            else:
+                wav_path, duration = synthesize_text(chunk, cfg)
+            if not self._is_session_active(session):
+                break
+
+            if index + 1 < len(chunks):
+                prefetch_after = max(0.0, duration - float(cfg.get("tts_prefetch_seconds", 5.0)))
+                next_text = chunks[index + 1]
+
+                def prefetch():
+                    nonlocal next_job
+                    if next_job is None and self._is_session_active(session):
+                        next_job = _SynthesisJob(next_text, cfg)
+
+                self._play_wav(session, wav_path, duration, prefetch, prefetch_after)
+            else:
+                self._play_wav(session, wav_path, duration)
+
+    def _is_session_active(self, session):
+        with self._lock:
+            return session == self._session and not self._stop_event.is_set()
+
+    def _play_wav(self, session, wav_path, duration, prefetch=None, prefetch_after=None):
+        if not self._is_session_active(session):
+            return
+        try:
+            winsound.PlaySound(str(wav_path), winsound.SND_FILENAME | winsound.SND_ASYNC)
+        except Exception as e:
+            raise TtsError(f"Не удалось проиграть WAV: {e}") from e
+        started = time.monotonic()
+        prefetched = False
+        while self._is_session_active(session):
+            elapsed = time.monotonic() - started
+            if prefetch and not prefetched and prefetch_after is not None and elapsed >= prefetch_after:
+                prefetched = True
+                prefetch()
+            if elapsed >= duration + 0.2:
+                break
+            time.sleep(0.05)
+        try:
+            winsound.PlaySound(None, winsound.SND_PURGE)
+        except Exception:
+            pass
+
+
+class _SynthesisJob:
+    def __init__(self, text, cfg):
+        self._result = None
+        self._error = None
+        self._done = threading.Event()
+        self._thread = threading.Thread(target=self._run, args=(text, dict(cfg)), daemon=True)
+        self._thread.start()
+
+    def _run(self, text, cfg):
+        try:
+            self._result = synthesize_text(text, cfg)
+        except Exception as e:
+            self._error = e
+        finally:
+            self._done.set()
+
+    def result(self, controller, session):
+        while not self._done.wait(0.05):
+            if not controller._is_session_active(session):
+                return None
+        if self._error:
+            raise self._error
+        return self._result
+
+
+_DEFAULT_PLAYBACK = TtsPlaybackController()
 
 
 PROVIDER_LABELS = {
@@ -54,6 +162,14 @@ def provider_value(label):
 
 
 def speak_text(text, cfg):
+    return _DEFAULT_PLAYBACK.speak(text, cfg)
+
+
+def stop_speaking():
+    _DEFAULT_PLAYBACK.stop()
+
+
+def synthesize_text(text, cfg):
     text = _prepare_tts_text(text)
     provider = cfg.get("tts_provider", "yandex")
     if provider in ("sapi", "google_old"):
@@ -86,6 +202,48 @@ def speak_clipboard(cfg):
     if not text.strip():
         raise TtsError("Буфер пуст.")
     speak_text(text, cfg)
+
+
+def _wav_duration(path):
+    with wave.open(str(path), "rb") as wav:
+        frames = wav.getnframes()
+        rate = wav.getframerate()
+    if rate <= 0:
+        return 0.0
+    return frames / float(rate)
+
+
+def _split_reading_text(text, limit):
+    limit = max(80, limit)
+    sentences = re.split(r"(?<=[.!?…])\s+", text)
+    chunks = []
+    current = ""
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        candidate = f"{current} {sentence}".strip()
+        if len(candidate) <= limit:
+            current = candidate
+            continue
+        if current:
+            chunks.append(current)
+        if len(sentence) <= limit:
+            current = sentence
+            continue
+        words = sentence.split()
+        current = ""
+        for word in words:
+            candidate = f"{current} {word}".strip()
+            if len(candidate) <= limit:
+                current = candidate
+            else:
+                if current:
+                    chunks.append(current)
+                current = word
+    if current:
+        chunks.append(current)
+    return chunks or [text]
 
 
 def _existing_path(value):
@@ -151,7 +309,7 @@ def speak_piper(text, cfg):
         raise TtsError(completed.stderr.strip() or "Piper вернул ошибку.")
     if not out_path.exists() or out_path.stat().st_size == 0:
         raise TtsError("Piper не создал WAV-файл.")
-    winsound.PlaySound(str(out_path), winsound.SND_FILENAME)
+    return out_path, _wav_duration(out_path)
 
 
 def _load_env_values():
@@ -258,7 +416,7 @@ def speak_yandex(text, cfg):
         wav.setsampwidth(2)
         wav.setframerate(sample_rate)
         wav.writeframes(audio)
-    winsound.PlaySound(str(out_path), winsound.SND_FILENAME)
+    return out_path, _wav_duration(out_path)
 
 
 def speak_amazon_polly_maxim(text, cfg):
@@ -292,7 +450,7 @@ def speak_amazon_polly_maxim(text, cfg):
         wav.setsampwidth(2)
         wav.setframerate(sample_rate)
         wav.writeframes(audio)
-    winsound.PlaySound(str(out_path), winsound.SND_FILENAME)
+    return out_path, _wav_duration(out_path)
 
 
 def _escape_ssml_text(text):
@@ -339,7 +497,7 @@ def speak_google_translate(text, cfg):
         sf.write(str(wav_path), audio, sample_rate)
     except Exception as e:
         raise TtsError(f"Google Translate TTS не смог озвучить текст: {e}") from e
-    winsound.PlaySound(str(wav_path), winsound.SND_FILENAME)
+    return wav_path, _wav_duration(wav_path)
 
 
 def _change_audio_speed(audio, speed):

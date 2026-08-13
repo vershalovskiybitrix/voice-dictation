@@ -73,6 +73,9 @@ def build_tray(service):
             daemon=True,
         ).start()
 
+    def stop_speaking(icon, item):
+        service.stop_speaking()
+
     def copy_text(text):
         def _copy(icon, item):
             try:
@@ -139,6 +142,7 @@ def build_tray(service):
         Item("Прочитать выделенное", speak_selection),
         Item("Прочитать буфер", speak_clipboard),
         Item("Тест читалки", speak_test),
+        Item("Остановить чтение", stop_speaking),
         pystray.Menu.SEPARATOR,
         Item("Пауза хоткеев", toggle_pause, checked=lambda item: service.paused),
         Item("Выход", do_quit),

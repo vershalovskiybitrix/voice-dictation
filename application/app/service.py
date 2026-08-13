@@ -18,7 +18,7 @@ from .engine import Transcriber, load_model
 from .files import save_recording, watch_inbox
 from .hotkeys import HotkeyManager
 from .output import Inserter
-from .tts import TtsError, provider_label, speak_clipboard as tts_speak_clipboard, speak_text as tts_speak_text
+from .tts import TtsError, TtsPlaybackController, provider_label
 from .util import log
 
 
@@ -51,6 +51,7 @@ class VoiceService:
         self._chunk_thread = None
         self._keys_busy = False
         self._kb = keyboard.Controller()
+        self.tts_playback = TtsPlaybackController()
 
     # ------------------------------------------------------------------ #
     #  Индикация
@@ -258,7 +259,7 @@ class VoiceService:
         self.set_status(f"Speaking: {provider}")
         log(f"TTS start: {provider_label(provider)}")
         try:
-            tts_speak_text(text, self.cfg)
+            self.tts_playback.speak(text, self.cfg)
         except TtsError as e:
             log(f"Ошибка чтения: {e}")
             self._notify(str(e), "VoiceService TTS")
@@ -269,19 +270,21 @@ class VoiceService:
             self.set_status("Recording" if self.recording else "Idle")
 
     def speak_clipboard(self):
-        provider = self.cfg.get("tts_provider", "yandex")
-        self.set_status(f"Speaking: {provider}")
-        log(f"TTS clipboard start: {provider_label(provider)}")
         try:
-            tts_speak_clipboard(self.cfg)
-        except TtsError as e:
+            text = pyperclip.paste()
+        except Exception as e:
             log(f"Ошибка чтения буфера: {e}")
             self._notify(str(e), "VoiceService TTS")
-        except Exception as e:
-            log(f"Неожиданная ошибка чтения буфера: {e}")
-            self._notify(str(e), "VoiceService TTS")
-        finally:
-            self.set_status("Recording" if self.recording else "Idle")
+            return
+        if not text.strip():
+            self._notify("Буфер пуст.", "VoiceService TTS")
+            return
+        self.speak_text(text)
+
+    def stop_speaking(self):
+        log("TTS stop")
+        self.tts_playback.stop()
+        self.set_status("Recording" if self.recording else "Idle")
 
     def speak_selection(self):
         threading.Thread(target=self._speak_selection_worker, daemon=True).start()
@@ -418,6 +421,9 @@ class VoiceService:
     def on_read_selection(self):
         self.speak_selection()
 
+    def on_stop_tts(self):
+        self.stop_speaking()
+
 
 def run():
     """Точка входа: грузит модель, поднимает хоткеи и трей."""
@@ -434,6 +440,7 @@ def run():
         read_selection_double_tap=cfg.get("read_selected_double_tap", True),
         read_selection_double_tap_seconds=cfg.get("read_selected_double_tap_seconds", 0.45),
         read_selection_max_tap_seconds=cfg.get("read_selected_max_tap_seconds", 0.25),
+        stop_tts_triple_tap=cfg.get("tts_stop_triple_tap", True),
     )
     threading.Thread(target=hotkeys.run, daemon=True).start()
     log(

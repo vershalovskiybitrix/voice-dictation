@@ -43,6 +43,7 @@ class HotkeyManager:
         read_selection_double_tap=True,
         read_selection_double_tap_seconds=0.45,
         read_selection_max_tap_seconds=0.25,
+        stop_tts_triple_tap=True,
     ):
         self.ptt_key = ptt_key
         self.toggle_key = toggle_key
@@ -50,11 +51,13 @@ class HotkeyManager:
         self.read_selection_double_tap = read_selection_double_tap
         self.read_selection_double_tap_seconds = float(read_selection_double_tap_seconds)
         self.read_selection_max_tap_seconds = float(read_selection_max_tap_seconds)
+        self.stop_tts_triple_tap = bool(stop_tts_triple_tap)
         self.cb = callbacks
         self._ptt_down = False
         self._ptt_dirty = False
         self._ptt_press_time = None
         self._last_read_key_tap = None
+        self._read_key_tap_count = 0
 
     def _ignore(self):
         """Пока приложение само шлёт клавиши (вставка Ctrl+V) — не реагируем на них."""
@@ -89,15 +92,29 @@ class HotkeyManager:
             now = time.monotonic()
             press_time = self._ptt_press_time or now
             self._ptt_press_time = None
-            if self._is_read_selection_double_tap(name, now, now - press_time):
-                self._last_read_key_tap = None
-                self.cb.on_ptt_cancel()
-                fn = getattr(self.cb, "on_read_selection", None)
-                if fn:
-                    fn()
-                return
             if self._is_read_selection_tap(name, now - press_time):
+                if (
+                    self._last_read_key_tap is not None
+                    and now - self._last_read_key_tap <= self.read_selection_double_tap_seconds
+                ):
+                    self._read_key_tap_count += 1
+                else:
+                    self._read_key_tap_count = 1
                 self._last_read_key_tap = now
+                if self.stop_tts_triple_tap and self._read_key_tap_count >= 3:
+                    self._last_read_key_tap = None
+                    self._read_key_tap_count = 0
+                    self.cb.on_ptt_cancel()
+                    fn = getattr(self.cb, "on_stop_tts", None)
+                    if fn:
+                        fn()
+                    return
+                if self._read_key_tap_count == 2:
+                    self.cb.on_ptt_cancel()
+                    fn = getattr(self.cb, "on_read_selection", None)
+                    if fn:
+                        fn()
+                    return
             if not self._ptt_dirty:
                 self.cb.on_ptt_commit()
 
@@ -108,13 +125,6 @@ class HotkeyManager:
             and name == self.read_selection_key
             and duration <= self.read_selection_max_tap_seconds
         )
-
-    def _is_read_selection_double_tap(self, name, now, duration):
-        if not self._is_read_selection_tap(name, duration):
-            return False
-        if self._last_read_key_tap is None:
-            return False
-        return now - self._last_read_key_tap <= self.read_selection_double_tap_seconds
 
     def run(self):
         """Блокирующий цикл прослушивания (запускать в отдельном потоке)."""

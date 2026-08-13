@@ -73,6 +73,9 @@ DEFAULT_CONFIG = {
     "tts_google_speed": 1.0,
     "tts_polly_region": "eu-central-1",
     "tts_polly_rate_percent": 100,
+    "tts_chunk_chars": 280,
+    "tts_prefetch_seconds": 5.0,
+    "tts_stop_triple_tap": True,
 
     "beep": True,
     "min_record_seconds": 0.4,    # короче — игнор (защита от случайных нажатий)

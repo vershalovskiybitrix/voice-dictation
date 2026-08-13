@@ -38,6 +38,7 @@ class FakeCallbacks:
     def on_ptt_cancel(self): self.events.append("cancel")
     def on_toggle(self):     self.events.append("toggle")
     def on_read_selection(self): self.events.append("read_selection")
+    def on_stop_tts(self): self.events.append("stop_tts")
     def ignore_keys(self):   return self.ignore
 
 
@@ -151,6 +152,16 @@ def test_double_tap_reads_selection():
         "второй тап отменяет PTT и вызывает read_selection",
         cb.events == ["start", "commit", "start", "cancel", "read_selection"],
     )
+
+
+def test_triple_tap_stops_tts():
+    print("test: тройной короткий правый Ctrl -> остановка чтения")
+    mgr, cb = new_mgr_with_read_selection()
+    for _ in range(3):
+        mgr.on_press(CTRL_R)
+        mgr.on_release(CTRL_R)
+        time.sleep(0.05)
+    check("тройной тап вызывает stop_tts", cb.events[-1:] == ["stop_tts"])
 
 
 def test_collapse_repeats():
@@ -282,6 +293,9 @@ def test_config():
     check("tts_google_speed есть", "tts_google_speed" in cfg)
     check("tts_polly_region есть", "tts_polly_region" in cfg)
     check("tts_polly_rate_percent есть", "tts_polly_rate_percent" in cfg)
+    check("tts_chunk_chars есть", "tts_chunk_chars" in cfg)
+    check("tts_prefetch_seconds есть", "tts_prefetch_seconds" in cfg)
+    check("tts_stop_triple_tap есть", "tts_stop_triple_tap" in cfg)
     check("read_selected_key есть", "read_selected_key" in cfg)
     check("chunk_strip_trailing_ellipsis есть", "chunk_strip_trailing_ellipsis" in cfg)
     check("history_persist_count есть", "history_persist_count" in cfg)
@@ -343,6 +357,7 @@ def main():
     test_own_paste_does_not_cancel()
     test_toggle()
     test_double_tap_reads_selection()
+    test_triple_tap_stops_tts()
     test_collapse_repeats()
     test_recordings_cache()
     test_chunking()
