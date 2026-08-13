@@ -27,10 +27,11 @@ PROVIDER_LABELS = {
     "silero": "Silero: локальная русская модель",
     "rhvoice": "RHVoice: лёгкая офлайн-читалка",
     "yandex": "Yandex SpeechKit: облачная читалка",
-    "google_old": "Старый Google-робот: robot/fun",
+    "google_old": "Старый Google Translate: тестовый голос",
 }
 
 SILERO_SPEAKERS = ["aidar", "baya", "kseniya", "eugene", "xenia"]
+# Current adapter uses SpeechKit API v1, so only v1-compatible ru-RU voices are shown.
 YANDEX_VOICES = {
     "alena": ["neutral", "good"],
     "filipp": [""],
@@ -38,14 +39,7 @@ YANDEX_VOICES = {
     "jane": ["neutral", "good", "evil"],
     "omazh": ["neutral", "evil"],
     "zahar": ["neutral", "good"],
-    "dasha": ["neutral", "good", "friendly"],
-    "julia": ["neutral", "strict"],
-    "lera": ["neutral", "friendly"],
-    "masha": ["good", "strict", "friendly"],
     "marina": ["neutral", "whisper", "friendly"],
-    "alexander": ["neutral", "good"],
-    "kirill": ["neutral", "strict", "good"],
-    "anton": ["neutral", "good"],
     "madi_ru": [""],
 }
 _SILERO_MODEL_CACHE = {}

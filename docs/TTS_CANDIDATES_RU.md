@@ -9,8 +9,21 @@
 
 ## Тестовые / проблемные
 
-- `google_old`: тестовый Google Translate robot/fun. Оставить как экспериментальный пресет, не путать с обычной читалкой.
-- `rhvoice`: не отдельный portable-провайдер. На Windows RHVoice ставится как SAPI voice installer; после системной установки голос должен появиться в списке SAPI.
+- `google_old`: тестовый прямой Google Translate TTS. В текущем endpoint нет нормального выбора голоса, пола или preset; не считать полноценной читалкой.
+- `rhvoice`: на Windows ставится как SAPI voice installer. Установщик скачан в `runtime/tts/rhvoice/downloads/RHVoice-Plus-setup.exe`; после системной установки голос должен появиться в списке SAPI.
+
+## Yandex SpeechKit
+
+Текущий код использует API v1 `speech/v1/tts:synthesize`, поэтому в настройках показываются только русские голоса из документации Yandex, у которых есть версия v1:
+
+- `alena`: `neutral`, `good`
+- `filipp`: без роли
+- `ermil`: `neutral`, `good`
+- `jane`: `neutral`, `good`, `evil`
+- `omazh`: `neutral`, `evil`
+- `zahar`: `neutral`, `good`
+- `marina`: `neutral`, `whisper`, `friendly`
+- `madi_ru`: без роли
 
 ## Проверка
 

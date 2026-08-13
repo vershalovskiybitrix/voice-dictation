@@ -137,33 +137,37 @@ class SettingsWindow(ttk.Frame):
 
     def _tab_tts(self, parent):
         frame = ttk.Frame(parent, padding=10)
-        provider_values = [provider_label(v) for v in ("sapi", "piper", "silero", "yandex", "google_old")]
-        provider_var = tk.StringVar(value=provider_label(self.service.cfg.get("tts_provider", "sapi")))
-        self.vars["tts_provider_label"] = provider_var
-        ttk.Label(frame, text="Читалка").grid(row=0, column=0, sticky="w", pady=4)
-        combo = ttk.Combobox(frame, textvariable=provider_var, values=provider_values, state="readonly")
-        combo.grid(row=0, column=1, sticky="ew", pady=4)
-        combo.bind("<<ComboboxSelected>>", lambda _e: self._save_tts_provider())
 
-        hotkey_frame = ttk.LabelFrame(frame, text="Горячее чтение")
-        hotkey_frame.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(8, 0))
+        hotkey_frame = ttk.LabelFrame(frame, text="Горячее чтение выделенного")
+        hotkey_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
         hotkey_frame.columnconfigure(1, weight=1)
         self._check(hotkey_frame, "Двойной тап читает выделенный текст", "read_selected_double_tap", row=0)
-        self._text(hotkey_frame, "Клавиша чтения выделенного", "read_selected_key", row=1, width=12, sticky="w")
+        self._text(hotkey_frame, "Клавиша", "read_selected_key", row=1, width=12)
         self._number(hotkey_frame, "Окно двойного тапа, сек", "read_selected_double_tap_seconds", row=2, width=12)
         self._number(hotkey_frame, "Максимум короткого тапа, сек", "read_selected_max_tap_seconds", row=3, width=12)
 
-        self.tts_settings_frame = ttk.Frame(frame)
-        self.tts_settings_frame.grid(row=2, column=0, columnspan=3, sticky="ew", pady=(8, 0))
+        provider_frame = ttk.LabelFrame(frame, text="Провайдер чтения")
+        provider_frame.grid(row=1, column=0, sticky="ew")
+        provider_frame.columnconfigure(1, weight=1)
+        provider_values = [provider_label(v) for v in ("sapi", "piper", "silero", "yandex", "google_old")]
+        provider_var = tk.StringVar(value=provider_label(self.service.cfg.get("tts_provider", "sapi")))
+        self.vars["tts_provider_label"] = provider_var
+        ttk.Label(provider_frame, text="Читалка").grid(row=0, column=0, sticky="w", pady=4)
+        combo = ttk.Combobox(provider_frame, textvariable=provider_var, values=provider_values, state="readonly")
+        combo.grid(row=0, column=1, sticky="ew", pady=4)
+        combo.bind("<<ComboboxSelected>>", lambda _e: self._save_tts_provider())
+
+        self.tts_settings_frame = ttk.Frame(provider_frame)
+        self.tts_settings_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
         self.tts_settings_frame.columnconfigure(1, weight=1)
 
-        ttk.Label(frame, textvariable=self.tts_status_var).grid(row=3, column=0, columnspan=3, sticky="w", pady=(10, 0))
-        buttons = ttk.Frame(frame)
-        buttons.grid(row=4, column=0, columnspan=3, sticky="w", pady=(12, 0))
+        ttk.Label(provider_frame, textvariable=self.tts_status_var).grid(row=2, column=0, columnspan=2, sticky="w", pady=(10, 0))
+        buttons = ttk.Frame(provider_frame)
+        buttons.grid(row=3, column=0, columnspan=2, sticky="w", pady=(12, 0))
         ttk.Button(buttons, text="Прочитать буфер", command=lambda: self._run_bg(self.service.speak_clipboard)).pack(side=tk.LEFT)
         ttk.Button(buttons, text="Тестовая фраза", command=lambda: self._run_bg(self._speak_test)).pack(side=tk.LEFT, padx=(8, 0))
 
-        frame.columnconfigure(1, weight=1)
+        frame.columnconfigure(0, weight=1)
         self._rebuild_tts_settings()
         return frame
 
@@ -222,7 +226,6 @@ class SettingsWindow(ttk.Frame):
             return
         if provider == "google_old":
             self._combo(self.tts_settings_frame, "Язык Google", "tts_google_lang", ["ru", "en"], row=0)
-            self._combo(self.tts_settings_frame, "Режим", "tts_robot_preset", ["test-delete-later"], row=1)
 
     def _provider_status_line(self, provider):
         info = providers_status().get(provider)

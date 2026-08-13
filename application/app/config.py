@@ -78,7 +78,6 @@ DEFAULT_CONFIG = {
     "tts_yandex_speed": 1.0,
     "tts_google_lang": "ru",
     "tts_google_tld": "com",
-    "tts_robot_preset": "test-delete-later",
 
     "beep": True,
     "min_record_seconds": 0.4,    # короче — игнор (защита от случайных нажатий)

@@ -18,7 +18,7 @@ from .engine import Transcriber, load_model
 from .files import save_recording, watch_inbox
 from .hotkeys import HotkeyManager
 from .output import Inserter
-from .tts import TtsError, speak_clipboard, speak_text
+from .tts import TtsError, provider_label, speak_clipboard as tts_speak_clipboard, speak_text as tts_speak_text
 from .util import log
 
 
@@ -251,18 +251,37 @@ class VoiceService:
         save_config(self.cfg)
 
     def speak_text(self, text):
+        if not text or not text.strip():
+            self._notify("Не вижу текст для чтения.", "VoiceService TTS")
+            return
+        provider = self.cfg.get("tts_provider", "sapi")
+        self.set_status(f"Speaking: {provider}")
+        log(f"TTS start: {provider_label(provider)}")
         try:
-            speak_text(text, self.cfg)
+            tts_speak_text(text, self.cfg)
         except TtsError as e:
             log(f"Ошибка чтения: {e}")
             self._notify(str(e), "VoiceService TTS")
+        except Exception as e:
+            log(f"Неожиданная ошибка чтения: {e}")
+            self._notify(str(e), "VoiceService TTS")
+        finally:
+            self.set_status("Recording" if self.recording else "Idle")
 
     def speak_clipboard(self):
+        provider = self.cfg.get("tts_provider", "sapi")
+        self.set_status(f"Speaking: {provider}")
+        log(f"TTS clipboard start: {provider_label(provider)}")
         try:
-            speak_clipboard(self.cfg)
+            tts_speak_clipboard(self.cfg)
         except TtsError as e:
             log(f"Ошибка чтения буфера: {e}")
             self._notify(str(e), "VoiceService TTS")
+        except Exception as e:
+            log(f"Неожиданная ошибка чтения буфера: {e}")
+            self._notify(str(e), "VoiceService TTS")
+        finally:
+            self.set_status("Recording" if self.recording else "Idle")
 
     def speak_selection(self):
         threading.Thread(target=self._speak_selection_worker, daemon=True).start()
