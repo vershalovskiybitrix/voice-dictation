@@ -139,10 +139,13 @@ class SettingsWindow(ttk.Frame):
         provider_frame = ttk.LabelFrame(frame, text="Провайдер чтения")
         provider_frame.grid(row=0, column=0, sticky="ew")
         provider_frame.columnconfigure(1, weight=1)
-        provider_values = [provider_label(v) for v in ("piper", "silero", "yandex", "google_old")]
+        provider_values = [provider_label(v) for v in ("piper", "silero", "yandex", "google_translate")]
         provider = self.service.cfg.get("tts_provider", "yandex")
         if provider == "sapi":
             provider = "yandex"
+            self.service.update_setting("tts_provider", provider)
+        if provider == "google_old":
+            provider = "google_translate"
             self.service.update_setting("tts_provider", provider)
         provider_var = tk.StringVar(value=provider_label(provider))
         self.vars["tts_provider_label"] = provider_var
@@ -222,7 +225,7 @@ class SettingsWindow(ttk.Frame):
             self._combo(self.tts_settings_frame, "Амплуа/роль", "tts_yandex_role", roles, row=1)
             self._number(self.tts_settings_frame, "Скорость", "tts_yandex_speed", row=2, width=8)
             return
-        if provider == "google_old":
+        if provider == "google_translate":
             self._combo(self.tts_settings_frame, "Язык Google", "tts_google_lang", ["ru", "en"], row=0)
             self._number(self.tts_settings_frame, "Скорость Google", "tts_google_speed", row=1, width=8)
 

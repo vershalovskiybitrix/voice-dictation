@@ -26,7 +26,7 @@ PROVIDER_LABELS = {
     "piper": "Piper: локальная нейросетевая читалка",
     "silero": "Silero: локальная русская модель",
     "yandex": "Yandex SpeechKit: облачная читалка",
-    "google_old": "Старый Google Translate: тестовый голос",
+    "google_translate": "Google Translate: текущая веб-читалка",
 }
 
 SILERO_SPEAKERS = ["aidar", "baya", "kseniya", "eugene", "xenia"]
@@ -58,16 +58,16 @@ def provider_value(label):
 def speak_text(text, cfg):
     text = _prepare_tts_text(text)
     provider = cfg.get("tts_provider", "yandex")
-    if provider == "sapi":
-        provider = "yandex"
+    if provider in ("sapi", "google_old"):
+        provider = "yandex" if provider == "sapi" else "google_translate"
     if provider == "piper":
         return speak_piper(text, cfg)
     if provider == "silero":
         return speak_silero(text, cfg)
     if provider == "yandex":
         return speak_yandex(text, cfg)
-    if provider == "google_old":
-        return speak_google_old(text, cfg)
+    if provider == "google_translate":
+        return speak_google_translate(text, cfg)
     raise TtsError(f"Неизвестный TTS-провайдер: {provider!r}")
 
 
@@ -305,24 +305,24 @@ def speak_yandex(text, cfg):
     winsound.PlaySound(str(out_path), winsound.SND_FILENAME)
 
 
-def speak_google_old(text, cfg):
+def speak_google_translate(text, cfg):
     if not text.strip():
         raise TtsError("Нет текста для чтения.")
     try:
         import numpy as np
         import soundfile as sf
     except Exception as e:
-        raise TtsError(f"numpy/soundfile не установлены для Google-robot: {e}") from e
+        raise TtsError(f"numpy/soundfile не установлены для Google Translate TTS: {e}") from e
 
     out_dir = Path(RUNTIME_DIR) / "tts" / "out"
     out_dir.mkdir(parents=True, exist_ok=True)
-    wav_path = out_dir / f"google_old_{uuid.uuid4().hex}.wav"
+    wav_path = out_dir / f"google_translate_{uuid.uuid4().hex}.wav"
     try:
         chunks = _split_google_tts_text(text)
         parts = []
         sample_rate = None
         for chunk in chunks:
-            mp3_path = out_dir / f"google_old_{uuid.uuid4().hex}.mp3"
+            mp3_path = out_dir / f"google_translate_{uuid.uuid4().hex}.mp3"
             _download_google_translate_tts(
                 chunk,
                 cfg.get("tts_google_lang", "ru"),
@@ -332,13 +332,13 @@ def speak_google_old(text, cfg):
             audio, current_rate = sf.read(str(mp3_path), dtype="float32")
             sample_rate = sample_rate or current_rate
             if current_rate != sample_rate:
-                raise TtsError(f"Google-robot вернул разные sample rate: {sample_rate} и {current_rate}.")
+                raise TtsError(f"Google Translate TTS вернул разные sample rate: {sample_rate} и {current_rate}.")
             parts.append(audio)
         audio = np.concatenate(parts) if len(parts) > 1 else parts[0]
         audio = _change_audio_speed(audio, float(cfg.get("tts_google_speed", 1.0)))
         sf.write(str(wav_path), audio, sample_rate)
     except Exception as e:
-        raise TtsError(f"Google-robot TTS не смог озвучить текст: {e}") from e
+        raise TtsError(f"Google Translate TTS не смог озвучить текст: {e}") from e
     winsound.PlaySound(str(wav_path), winsound.SND_FILENAME)
 
 
@@ -415,9 +415,9 @@ def providers_status():
             "detail": "YANDEX_CLOUD_API_KEY и YANDEX_CLOUD_FOLDER_ID найдены" if yandex_api_key and yandex_folder_id else "нужны YANDEX_CLOUD_API_KEY и YANDEX_CLOUD_FOLDER_ID в .env",
             "label": provider_label("yandex"),
         },
-        "google_old": {
+        "google_translate": {
             "available": bool(importlib.util.find_spec("numpy") and importlib.util.find_spec("soundfile")),
             "detail": "прямой Google Translate TTS + soundfile" if importlib.util.find_spec("numpy") and importlib.util.find_spec("soundfile") else "numpy/soundfile не установлены",
-            "label": provider_label("google_old"),
+            "label": provider_label("google_translate"),
         },
     }

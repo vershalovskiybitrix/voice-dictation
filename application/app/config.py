@@ -62,7 +62,7 @@ DEFAULT_CONFIG = {
     "history_persist_count": 50,
 
     # Читалка текста. Windows SAPI удалён из проекта из-за непригодного качества.
-    "tts_provider": "yandex",      # piper | silero | yandex | google_old
+    "tts_provider": "yandex",      # piper | silero | yandex | google_translate
     "tts_piper_exe": "",
     "tts_piper_model": "",
     "tts_silero_model": "v5_ru",
@@ -117,6 +117,8 @@ def load_config():
             log(f"Не удалось создать config.json: {e}")
     if cfg.get("tts_provider") == "sapi":
         cfg["tts_provider"] = "yandex"
+    if cfg.get("tts_provider") == "google_old":
+        cfg["tts_provider"] = "google_translate"
     for key in ("tts_sapi_remove_later", "tts_voice", "tts_rate", "tts_volume"):
         cfg.pop(key, None)
     return cfg
