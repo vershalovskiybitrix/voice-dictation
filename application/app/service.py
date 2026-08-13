@@ -286,6 +286,9 @@ class VoiceService:
         self.tts_playback.stop()
         self.set_status("Recording" if self.recording else "Idle")
 
+    def is_speaking(self):
+        return self.tts_playback.is_active()
+
     def speak_selection(self):
         threading.Thread(target=self._speak_selection_worker, daemon=True).start()
 
@@ -404,7 +407,12 @@ class VoiceService:
         return self.inserter.busy or self._keys_busy
 
     def on_ptt_start(self):
+        stopped_tts = False
+        if self.is_speaking():
+            self.stop_speaking()
+            stopped_tts = True
         self._begin("ptt")
+        return stopped_tts
 
     def on_ptt_commit(self):
         self._commit("ptt")

@@ -32,8 +32,14 @@ class FakeCallbacks:
     def __init__(self):
         self.events = []
         self.ignore = False
+        self.stop_on_start = False
 
-    def on_ptt_start(self):  self.events.append("start")
+    def on_ptt_start(self):
+        self.events.append("start")
+        if self.stop_on_start:
+            self.stop_on_start = False
+            return True
+        return False
     def on_ptt_commit(self): self.events.append("commit")
     def on_ptt_cancel(self): self.events.append("cancel")
     def on_toggle(self):     self.events.append("toggle")
@@ -162,6 +168,17 @@ def test_triple_tap_stops_tts():
         mgr.on_release(CTRL_R)
         time.sleep(0.05)
     check("тройной тап вызывает stop_tts", cb.events[-1:] == ["stop_tts"])
+
+
+def test_tts_stop_suppresses_read_tap():
+    print("test: правый Ctrl при активной читалке не запускает чтение выделенного")
+    mgr, cb = new_mgr_with_read_selection()
+    cb.stop_on_start = True
+    for _ in range(3):
+        mgr.on_press(CTRL_R)
+        mgr.on_release(CTRL_R)
+        time.sleep(0.05)
+    check("после стопа TTS нет read_selection", "read_selection" not in cb.events)
 
 
 def test_collapse_repeats():
@@ -358,6 +375,7 @@ def main():
     test_toggle()
     test_double_tap_reads_selection()
     test_triple_tap_stops_tts()
+    test_tts_stop_suppresses_read_tap()
     test_collapse_repeats()
     test_recordings_cache()
     test_chunking()

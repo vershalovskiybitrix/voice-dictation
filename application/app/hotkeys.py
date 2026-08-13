@@ -58,6 +58,7 @@ class HotkeyManager:
         self._ptt_press_time = None
         self._last_read_key_tap = None
         self._read_key_tap_count = 0
+        self._suppress_read_taps_until = 0.0
 
     def _ignore(self):
         """Пока приложение само шлёт клавиши (вставка Ctrl+V) — не реагируем на них."""
@@ -73,7 +74,13 @@ class HotkeyManager:
                 self._ptt_down = True
                 self._ptt_dirty = False
                 self._ptt_press_time = time.monotonic()
-                self.cb.on_ptt_start()
+                stopped_tts = bool(self.cb.on_ptt_start())
+                if stopped_tts:
+                    self._last_read_key_tap = None
+                    self._read_key_tap_count = 0
+                    self._suppress_read_taps_until = (
+                        self._ptt_press_time + self.read_selection_double_tap_seconds
+                    )
             return
         if name == self.toggle_key:
             self.cb.on_toggle()
@@ -92,29 +99,34 @@ class HotkeyManager:
             now = time.monotonic()
             press_time = self._ptt_press_time or now
             self._ptt_press_time = None
+            suppress_read_tap = now <= self._suppress_read_taps_until
             if self._is_read_selection_tap(name, now - press_time):
-                if (
-                    self._last_read_key_tap is not None
-                    and now - self._last_read_key_tap <= self.read_selection_double_tap_seconds
-                ):
-                    self._read_key_tap_count += 1
-                else:
-                    self._read_key_tap_count = 1
-                self._last_read_key_tap = now
-                if self.stop_tts_triple_tap and self._read_key_tap_count >= 3:
+                if suppress_read_tap:
                     self._last_read_key_tap = None
                     self._read_key_tap_count = 0
-                    self.cb.on_ptt_cancel()
-                    fn = getattr(self.cb, "on_stop_tts", None)
-                    if fn:
-                        fn()
-                    return
-                if self._read_key_tap_count == 2:
-                    self.cb.on_ptt_cancel()
-                    fn = getattr(self.cb, "on_read_selection", None)
-                    if fn:
-                        fn()
-                    return
+                else:
+                    if (
+                        self._last_read_key_tap is not None
+                        and now - self._last_read_key_tap <= self.read_selection_double_tap_seconds
+                    ):
+                        self._read_key_tap_count += 1
+                    else:
+                        self._read_key_tap_count = 1
+                    self._last_read_key_tap = now
+                    if self.stop_tts_triple_tap and self._read_key_tap_count >= 3:
+                        self._last_read_key_tap = None
+                        self._read_key_tap_count = 0
+                        self.cb.on_ptt_cancel()
+                        fn = getattr(self.cb, "on_stop_tts", None)
+                        if fn:
+                            fn()
+                        return
+                    if self._read_key_tap_count == 2:
+                        self.cb.on_ptt_cancel()
+                        fn = getattr(self.cb, "on_read_selection", None)
+                        if fn:
+                            fn()
+                        return
             if not self._ptt_dirty:
                 self.cb.on_ptt_commit()
 

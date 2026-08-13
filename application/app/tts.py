@@ -29,15 +29,21 @@ class TtsPlaybackController:
         self._lock = threading.RLock()
         self._stop_event = threading.Event()
         self._session = 0
+        self._active = False
 
     def stop(self):
         with self._lock:
             self._session += 1
             self._stop_event.set()
+            self._active = False
         try:
             winsound.PlaySound(None, winsound.SND_PURGE)
         except Exception:
             pass
+
+    def is_active(self):
+        with self._lock:
+            return self._active and not self._stop_event.is_set()
 
     def speak(self, text, cfg):
         text = _prepare_tts_text(text)
@@ -46,34 +52,40 @@ class TtsPlaybackController:
             self._stop_event = threading.Event()
             self._session += 1
             session = self._session
-        chunks = _split_reading_text(text, int(cfg.get("tts_chunk_chars", 280)))
-        next_job = None
-        for index, chunk in enumerate(chunks):
-            if not self._is_session_active(session):
-                break
-            if next_job is not None:
-                result = next_job.result(self, session)
-                next_job = None
-                if result is None:
+            self._active = True
+        try:
+            chunks = _split_reading_text(text, int(cfg.get("tts_chunk_chars", 280)))
+            next_job = None
+            for index, chunk in enumerate(chunks):
+                if not self._is_session_active(session):
                     break
-                wav_path, duration = result
-            else:
-                wav_path, duration = synthesize_text(chunk, cfg)
-            if not self._is_session_active(session):
-                break
+                if next_job is not None:
+                    result = next_job.result(self, session)
+                    next_job = None
+                    if result is None:
+                        break
+                    wav_path, duration = result
+                else:
+                    wav_path, duration = synthesize_text(chunk, cfg)
+                if not self._is_session_active(session):
+                    break
 
-            if index + 1 < len(chunks):
-                prefetch_after = max(0.0, duration - float(cfg.get("tts_prefetch_seconds", 5.0)))
-                next_text = chunks[index + 1]
+                if index + 1 < len(chunks):
+                    prefetch_after = max(0.0, duration - float(cfg.get("tts_prefetch_seconds", 5.0)))
+                    next_text = chunks[index + 1]
 
-                def prefetch():
-                    nonlocal next_job
-                    if next_job is None and self._is_session_active(session):
-                        next_job = _SynthesisJob(next_text, cfg)
+                    def prefetch():
+                        nonlocal next_job
+                        if next_job is None and self._is_session_active(session):
+                            next_job = _SynthesisJob(next_text, cfg)
 
-                self._play_wav(session, wav_path, duration, prefetch, prefetch_after)
-            else:
-                self._play_wav(session, wav_path, duration)
+                    self._play_wav(session, wav_path, duration, prefetch, prefetch_after)
+                else:
+                    self._play_wav(session, wav_path, duration)
+        finally:
+            with self._lock:
+                if session == self._session:
+                    self._active = False
 
     def _is_session_active(self, session):
         with self._lock:
