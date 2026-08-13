@@ -25,7 +25,6 @@ PROVIDER_LABELS = {
     "sapi": "Windows SAPI: временный системный голос",
     "piper": "Piper: локальная нейросетевая читалка",
     "silero": "Silero: локальная русская модель",
-    "rhvoice": "RHVoice: лёгкая офлайн-читалка",
     "yandex": "Yandex SpeechKit: облачная читалка",
     "google_old": "Старый Google Translate: тестовый голос",
 }
@@ -64,8 +63,6 @@ def speak_text(text, cfg):
         return speak_piper(text, cfg)
     if provider == "silero":
         return speak_silero(text, cfg)
-    if provider == "rhvoice":
-        return speak_rhvoice(text, cfg)
     if provider == "yandex":
         return speak_yandex(text, cfg)
     if provider == "google_old":
@@ -117,31 +114,6 @@ def speak_sapi(text, cfg):
     )
     if completed.returncode != 0:
         raise TtsError(completed.stderr.strip() or "SAPI вернул ошибку.")
-
-
-def speak_rhvoice(text, cfg):
-    if not text.strip():
-        raise TtsError("Нет текста для чтения.")
-    for command in (
-        ["RHVoice-client", "-s", cfg.get("tts_voice", "")],
-        ["rhvoice-client", "-s", cfg.get("tts_voice", "")],
-    ):
-        command = [part for part in command if part]
-        try:
-            completed = subprocess.run(
-                command,
-                input=text,
-                text=True,
-                capture_output=True,
-                check=False,
-                creationflags=0x08000000 if sys.platform == "win32" else 0,
-            )
-        except FileNotFoundError:
-            continue
-        if completed.returncode == 0:
-            return
-        raise TtsError(completed.stderr.strip() or "RHVoice вернул ошибку.")
-    raise TtsError("RHVoice-client не найден в PATH.")
 
 
 def _existing_path(value):

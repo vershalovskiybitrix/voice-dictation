@@ -138,16 +138,8 @@ class SettingsWindow(ttk.Frame):
     def _tab_tts(self, parent):
         frame = ttk.Frame(parent, padding=10)
 
-        hotkey_frame = ttk.LabelFrame(frame, text="Горячее чтение выделенного")
-        hotkey_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
-        hotkey_frame.columnconfigure(1, weight=1)
-        self._check(hotkey_frame, "Двойной тап читает выделенный текст", "read_selected_double_tap", row=0)
-        self._text(hotkey_frame, "Клавиша", "read_selected_key", row=1, width=12)
-        self._number(hotkey_frame, "Окно двойного тапа, сек", "read_selected_double_tap_seconds", row=2, width=12)
-        self._number(hotkey_frame, "Максимум короткого тапа, сек", "read_selected_max_tap_seconds", row=3, width=12)
-
         provider_frame = ttk.LabelFrame(frame, text="Провайдер чтения")
-        provider_frame.grid(row=1, column=0, sticky="ew")
+        provider_frame.grid(row=0, column=0, sticky="ew")
         provider_frame.columnconfigure(1, weight=1)
         provider_values = [provider_label(v) for v in ("sapi", "piper", "silero", "yandex", "google_old")]
         provider_var = tk.StringVar(value=provider_label(self.service.cfg.get("tts_provider", "sapi")))
@@ -166,6 +158,15 @@ class SettingsWindow(ttk.Frame):
         buttons.grid(row=3, column=0, columnspan=2, sticky="w", pady=(12, 0))
         ttk.Button(buttons, text="Прочитать буфер", command=lambda: self._run_bg(self.service.speak_clipboard)).pack(side=tk.LEFT)
         ttk.Button(buttons, text="Тестовая фраза", command=lambda: self._run_bg(self._speak_test)).pack(side=tk.LEFT, padx=(8, 0))
+
+        hotkey_frame = ttk.LabelFrame(frame, text="Горячее чтение выделенного")
+        hotkey_frame.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+        hotkey_frame.columnconfigure(1, weight=0)
+        hotkey_frame.columnconfigure(3, weight=0)
+        self._check(hotkey_frame, "Двойной тап читает выделенный текст", "read_selected_double_tap", row=0)
+        self._text(hotkey_frame, "Клавиша", "read_selected_key", row=1, width=12, sticky="w")
+        self._number(hotkey_frame, "Окно двойного тапа, сек", "read_selected_double_tap_seconds", row=0, column=2, width=8)
+        self._number(hotkey_frame, "Максимум короткого тапа, сек", "read_selected_max_tap_seconds", row=1, column=2, width=8)
 
         frame.columnconfigure(0, weight=1)
         self._rebuild_tts_settings()
@@ -262,10 +263,10 @@ class SettingsWindow(ttk.Frame):
         entry.bind("<FocusOut>", lambda _e: self._save_var(key))
         entry.bind("<Return>", lambda _e: self._save_var(key))
 
-    def _number(self, frame, label, key, row, width=10):
-        ttk.Label(frame, text=label).grid(row=row, column=0, sticky="w", pady=4)
+    def _number(self, frame, label, key, row, width=10, column=0):
+        ttk.Label(frame, text=label).grid(row=row, column=column, sticky="w", pady=4, padx=(0 if column == 0 else 18, 0))
         entry = ttk.Entry(frame, textvariable=self._get_var(key), width=width)
-        entry.grid(row=row, column=1, sticky="w", pady=4)
+        entry.grid(row=row, column=column + 1, sticky="w", pady=4)
         entry.bind("<FocusOut>", lambda _e: self._save_var(key, _number_cast))
         entry.bind("<Return>", lambda _e: self._save_var(key, _number_cast))
 

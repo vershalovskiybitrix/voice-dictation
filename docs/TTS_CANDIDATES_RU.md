@@ -10,7 +10,6 @@
 ## Тестовые / проблемные
 
 - `google_old`: тестовый прямой Google Translate TTS. В текущем endpoint нет нормального выбора голоса, пола или preset; не считать полноценной читалкой.
-- `rhvoice`: на Windows ставится как SAPI voice installer. Установщик скачан в `runtime/tts/rhvoice/downloads/RHVoice-Plus-setup.exe`; после системной установки голос должен появиться в списке SAPI.
 
 ## Yandex SpeechKit
 
