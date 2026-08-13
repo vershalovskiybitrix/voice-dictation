@@ -307,6 +307,7 @@ def test_tts_text_cleanup():
 
     check("пунктуация без текста не читается", raises_tts_error(lambda: _prepare_tts_text("????????")))
     check("повторная пунктуация схлопывается", _prepare_tts_text("Hello??? Stop!!!") == "Hello? Stop!")
+    check("русский текст не превращается в вопросы", _prepare_tts_text("Привет???") == "Привет?")
 
 
 def test_model():
