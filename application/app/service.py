@@ -8,6 +8,7 @@ import winsound
 
 import numpy as np
 import pyperclip
+from pynput import keyboard
 
 from .chunking import should_cut
 from .capture import Recorder
@@ -47,6 +48,8 @@ class VoiceService:
         self._chunk_lock = threading.Lock()
         self._chunk_buffer = np.zeros(0, dtype=np.float32)
         self._chunk_thread = None
+        self._keys_busy = False
+        self._kb = keyboard.Controller()
 
     # ------------------------------------------------------------------ #
     #  Индикация
@@ -259,6 +262,43 @@ class VoiceService:
             log(f"Ошибка чтения буфера: {e}")
             self._notify(str(e), "VoiceService TTS")
 
+    def speak_selection(self):
+        threading.Thread(target=self._speak_selection_worker, daemon=True).start()
+
+    def _speak_selection_worker(self):
+        try:
+            text = self._copy_selection_text()
+        except Exception as e:
+            log(f"Ошибка чтения выделения: {e}")
+            self._notify(str(e), "VoiceService TTS")
+            return
+        if not text.strip():
+            self._notify("Не вижу выделенный текст.", "VoiceService TTS")
+            return
+        self.speak_text(text)
+
+    def _copy_selection_text(self):
+        marker = f"__VOICE_SERVICE_SELECTION_{time.time_ns()}__"
+        try:
+            old_clipboard = pyperclip.paste()
+        except Exception:
+            old_clipboard = ""
+        self._keys_busy = True
+        try:
+            pyperclip.copy(marker)
+            time.sleep(0.03)
+            with self._kb.pressed(keyboard.Key.ctrl):
+                self._kb.press("c")
+                self._kb.release("c")
+            time.sleep(float(self.cfg.get("read_selected_copy_delay_seconds", 0.12)))
+            selected = pyperclip.paste()
+            pyperclip.copy(old_clipboard)
+        finally:
+            self._keys_busy = False
+        if selected == marker:
+            return ""
+        return selected
+
     def quit_cleanly(self):
         if self.tray is not None:
             try:
@@ -309,7 +349,7 @@ class VoiceService:
 
     def ignore_keys(self):
         """Игнорировать клавиши, пока сами шлём Ctrl+V (иначе отменим свою же диктовку)."""
-        return self.inserter.busy
+        return self.inserter.busy or self._keys_busy
 
     def on_ptt_start(self):
         self._begin("ptt")
@@ -326,6 +366,9 @@ class VoiceService:
         elif not self.recording:
             self._begin("toggle")
 
+    def on_read_selection(self):
+        self.speak_selection()
+
 
 def run():
     """Точка входа: грузит модель, поднимает хоткеи и трей."""
@@ -334,9 +377,20 @@ def run():
     model, device = load_model(cfg)
     service = VoiceService(cfg, model, device)
 
-    hotkeys = HotkeyManager(cfg["ptt_key"], cfg["toggle_key"], service)
+    hotkeys = HotkeyManager(
+        cfg["ptt_key"],
+        cfg["toggle_key"],
+        service,
+        read_selection_key=cfg.get("read_selected_key"),
+        read_selection_double_tap=cfg.get("read_selected_double_tap", True),
+        read_selection_double_tap_seconds=cfg.get("read_selected_double_tap_seconds", 0.45),
+        read_selection_max_tap_seconds=cfg.get("read_selected_max_tap_seconds", 0.25),
+    )
     threading.Thread(target=hotkeys.run, daemon=True).start()
-    log(f"Готово. PTT: держать [{cfg['ptt_key']}] | Toggle: [{cfg['toggle_key']}]")
+    log(
+        f"Готово. PTT: держать [{cfg['ptt_key']}] | Toggle: [{cfg['toggle_key']}] | "
+        f"Read selection: двойной тап [{cfg.get('read_selected_key', '')}]"
+    )
 
     # Слежение за папкой-приёмником: бросил аудиофайл → распознался.
     folder = inbox_dir(cfg)

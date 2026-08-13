@@ -145,8 +145,15 @@ class SettingsWindow(ttk.Frame):
         ttk.Label(frame, textvariable=self.tts_status_var).grid(row=2, column=0, columnspan=3, sticky="w", pady=(10, 0))
         buttons = ttk.Frame(frame)
         buttons.grid(row=3, column=0, columnspan=3, sticky="w", pady=(12, 0))
+        ttk.Button(buttons, text="Прочитать выделенное", command=self.service.speak_selection).pack(side=tk.LEFT)
         ttk.Button(buttons, text="Прочитать буфер", command=lambda: self._run_bg(self.service.speak_clipboard)).pack(side=tk.LEFT)
         ttk.Button(buttons, text="Тестовая фраза", command=lambda: self._run_bg(self._speak_test)).pack(side=tk.LEFT, padx=(8, 0))
+
+        ttk.Separator(frame).grid(row=4, column=0, columnspan=3, sticky="ew", pady=12)
+        self._check(frame, "Двойной тап читает выделенный текст", "read_selected_double_tap", row=5)
+        self._text(frame, "Клавиша чтения выделенного", "read_selected_key", row=6, width=16)
+        self._number(frame, "Окно двойного тапа, сек", "read_selected_double_tap_seconds", row=7, width=8)
+        self._number(frame, "Максимум короткого тапа, сек", "read_selected_max_tap_seconds", row=8, width=8)
 
         frame.columnconfigure(1, weight=1)
         self._rebuild_tts_settings()

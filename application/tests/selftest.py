@@ -37,6 +37,7 @@ class FakeCallbacks:
     def on_ptt_commit(self): self.events.append("commit")
     def on_ptt_cancel(self): self.events.append("cancel")
     def on_toggle(self):     self.events.append("toggle")
+    def on_read_selection(self): self.events.append("read_selection")
     def ignore_keys(self):   return self.ignore
 
 
@@ -64,6 +65,19 @@ def test_key_names():
 def new_mgr():
     cb = FakeCallbacks()
     return HotkeyManager("ctrl_r", "scroll_lock", cb), cb
+
+
+def new_mgr_with_read_selection():
+    cb = FakeCallbacks()
+    return HotkeyManager(
+        "ctrl_r",
+        "scroll_lock",
+        cb,
+        read_selection_key="ctrl_r",
+        read_selection_double_tap=True,
+        read_selection_double_tap_seconds=0.45,
+        read_selection_max_tap_seconds=0.25,
+    ), cb
 
 
 def test_ptt_clean():
@@ -123,6 +137,20 @@ def test_toggle():
     mgr.on_press(SCROLL)
     mgr.on_release(SCROLL)
     check("два toggle", cb.events == ["toggle", "toggle"])
+
+
+def test_double_tap_reads_selection():
+    print("test: двойной короткий правый Ctrl -> чтение выделенного")
+    mgr, cb = new_mgr_with_read_selection()
+    mgr.on_press(CTRL_R)
+    mgr.on_release(CTRL_R)
+    time.sleep(0.05)
+    mgr.on_press(CTRL_R)
+    mgr.on_release(CTRL_R)
+    check(
+        "второй тап отменяет PTT и вызывает read_selection",
+        cb.events == ["start", "commit", "start", "cancel", "read_selection"],
+    )
 
 
 def test_collapse_repeats():
@@ -243,6 +271,7 @@ def test_config():
     check("tts_silero_model есть", "tts_silero_model" in cfg)
     check("tts_yandex_voice есть", "tts_yandex_voice" in cfg)
     check("tts_google_lang есть", "tts_google_lang" in cfg)
+    check("read_selected_key есть", "read_selected_key" in cfg)
 
 
 def test_imports():
@@ -284,6 +313,7 @@ def main():
     test_ptt_cancel_once()
     test_own_paste_does_not_cancel()
     test_toggle()
+    test_double_tap_reads_selection()
     test_collapse_repeats()
     test_recordings_cache()
     test_chunking()

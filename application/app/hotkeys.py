@@ -1,5 +1,7 @@
 """Глобальные хоткеи: PTT с отменой по любой другой клавише + toggle."""
 
+import time
+
 from pynput import keyboard
 
 
@@ -26,14 +28,33 @@ class HotkeyManager:
       - отпускание без «грязи» → on_ptt_commit (распознать и вставить).
 
     Toggle (toggle_key): каждое нажатие → on_toggle.
+
+    Read selected text:
+      - двойной короткий тап read_selection_key → on_read_selection.
+        По умолчанию это тот же правый Ctrl; удержание продолжает работать как PTT.
     """
 
-    def __init__(self, ptt_key, toggle_key, callbacks):
+    def __init__(
+        self,
+        ptt_key,
+        toggle_key,
+        callbacks,
+        read_selection_key=None,
+        read_selection_double_tap=True,
+        read_selection_double_tap_seconds=0.45,
+        read_selection_max_tap_seconds=0.25,
+    ):
         self.ptt_key = ptt_key
         self.toggle_key = toggle_key
+        self.read_selection_key = read_selection_key
+        self.read_selection_double_tap = read_selection_double_tap
+        self.read_selection_double_tap_seconds = float(read_selection_double_tap_seconds)
+        self.read_selection_max_tap_seconds = float(read_selection_max_tap_seconds)
         self.cb = callbacks
         self._ptt_down = False
         self._ptt_dirty = False
+        self._ptt_press_time = None
+        self._last_read_key_tap = None
 
     def _ignore(self):
         """Пока приложение само шлёт клавиши (вставка Ctrl+V) — не реагируем на них."""
@@ -48,6 +69,7 @@ class HotkeyManager:
             if not self._ptt_down:
                 self._ptt_down = True
                 self._ptt_dirty = False
+                self._ptt_press_time = time.monotonic()
                 self.cb.on_ptt_start()
             return
         if name == self.toggle_key:
@@ -64,8 +86,35 @@ class HotkeyManager:
         name = key_to_name(key)
         if name == self.ptt_key and self._ptt_down:
             self._ptt_down = False
+            now = time.monotonic()
+            press_time = self._ptt_press_time or now
+            self._ptt_press_time = None
+            if self._is_read_selection_double_tap(name, now, now - press_time):
+                self._last_read_key_tap = None
+                self.cb.on_ptt_cancel()
+                fn = getattr(self.cb, "on_read_selection", None)
+                if fn:
+                    fn()
+                return
+            if self._is_read_selection_tap(name, now - press_time):
+                self._last_read_key_tap = now
             if not self._ptt_dirty:
                 self.cb.on_ptt_commit()
+
+    def _is_read_selection_tap(self, name, duration):
+        return (
+            self.read_selection_double_tap
+            and self.read_selection_key
+            and name == self.read_selection_key
+            and duration <= self.read_selection_max_tap_seconds
+        )
+
+    def _is_read_selection_double_tap(self, name, now, duration):
+        if not self._is_read_selection_tap(name, duration):
+            return False
+        if self._last_read_key_tap is None:
+            return False
+        return now - self._last_read_key_tap <= self.read_selection_double_tap_seconds
 
     def run(self):
         """Блокирующий цикл прослушивания (запускать в отдельном потоке)."""

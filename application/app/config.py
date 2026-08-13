@@ -27,6 +27,11 @@ DEFAULT_CONFIG = {
     #               что микрофон в режиме диктовки.
     "ptt_key": "ctrl_r",
     "toggle_key": "scroll_lock",
+    "read_selected_key": "ctrl_r",
+    "read_selected_double_tap": True,
+    "read_selected_double_tap_seconds": 0.45,
+    "read_selected_max_tap_seconds": 0.25,
+    "read_selected_copy_delay_seconds": 0.12,
     "ptt_beep_delay": 0.25,       # сек: задержка сигнала «пишу», чтобы не пищать на Ctrl-шорткаты
 
     "insert_method": "clipboard",  # clipboard | type

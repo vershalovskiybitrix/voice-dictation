@@ -63,6 +63,9 @@ def build_tray(service):
     def speak_clipboard(icon, item):
         threading.Thread(target=service.speak_clipboard, daemon=True).start()
 
+    def speak_selection(icon, item):
+        service.speak_selection()
+
     def speak_test(icon, item):
         threading.Thread(
             target=service.speak_text,
@@ -133,6 +136,7 @@ def build_tray(service):
         Item("Вставлять результат файла в курсор", toggle_file_insert,
              checked=lambda item: service.file_insert),
         pystray.Menu.SEPARATOR,
+        Item("Прочитать выделенное", speak_selection),
         Item("Прочитать буфер", speak_clipboard),
         Item("Тест читалки", speak_test),
         pystray.Menu.SEPARATOR,
