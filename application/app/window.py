@@ -139,7 +139,7 @@ class SettingsWindow(ttk.Frame):
         provider_frame = ttk.LabelFrame(frame, text="Провайдер чтения")
         provider_frame.grid(row=0, column=0, sticky="ew")
         provider_frame.columnconfigure(1, weight=1)
-        provider_values = [provider_label(v) for v in ("piper", "silero", "yandex", "google_translate")]
+        provider_values = [provider_label(v) for v in ("piper", "silero", "yandex", "google_translate", "amazon_polly_maxim")]
         provider = self.service.cfg.get("tts_provider", "yandex")
         if provider == "sapi":
             provider = "yandex"
@@ -228,6 +228,10 @@ class SettingsWindow(ttk.Frame):
         if provider == "google_translate":
             self._combo(self.tts_settings_frame, "Язык Google", "tts_google_lang", ["ru", "en"], row=0)
             self._number(self.tts_settings_frame, "Скорость Google", "tts_google_speed", row=1, width=8)
+            return
+        if provider == "amazon_polly_maxim":
+            self._combo(self.tts_settings_frame, "Region AWS", "tts_polly_region", ["eu-central-1", "us-east-1", "eu-west-1"], row=0)
+            self._number(self.tts_settings_frame, "Speed, %", "tts_polly_rate_percent", row=1, width=8)
 
     def _provider_status_line(self, provider):
         info = providers_status().get(provider)

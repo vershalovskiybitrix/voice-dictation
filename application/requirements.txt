@@ -18,6 +18,9 @@ pyperclip>=1.8.2
 pystray>=0.19.5
 pillow>=10.0
 
+# Amazon Polly TTS provider
+boto3>=1.34
+
 # --- CUDA-библиотеки для GPU (NVIDIA, CUDA 12). ---
 # Нужны CTranslate2 для работы на GPU. Без GPU приложение само откатится на CPU.
 # Маркер исключает их на macOS (там NVIDIA-колёс нет).

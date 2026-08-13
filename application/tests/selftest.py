@@ -281,6 +281,8 @@ def test_config():
     check("tts_yandex_voice есть", "tts_yandex_voice" in cfg)
     check("tts_google_lang есть", "tts_google_lang" in cfg)
     check("tts_google_speed есть", "tts_google_speed" in cfg)
+    check("tts_polly_region есть", "tts_polly_region" in cfg)
+    check("tts_polly_rate_percent есть", "tts_polly_rate_percent" in cfg)
     check("read_selected_key есть", "read_selected_key" in cfg)
     check("chunk_strip_trailing_ellipsis есть", "chunk_strip_trailing_ellipsis" in cfg)
     check("history_persist_count есть", "history_persist_count" in cfg)

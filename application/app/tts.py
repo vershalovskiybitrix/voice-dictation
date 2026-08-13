@@ -27,6 +27,7 @@ PROVIDER_LABELS = {
     "silero": "Silero: локальная русская модель",
     "yandex": "Yandex SpeechKit: облачная читалка",
     "google_translate": "Google Translate: текущая веб-читалка",
+    "amazon_polly_maxim": "Amazon Polly: Maxim",
 }
 
 SILERO_SPEAKERS = ["aidar", "baya", "kseniya", "eugene", "xenia"]
@@ -68,6 +69,8 @@ def speak_text(text, cfg):
         return speak_yandex(text, cfg)
     if provider == "google_translate":
         return speak_google_translate(text, cfg)
+    if provider == "amazon_polly_maxim":
+        return speak_amazon_polly_maxim(text, cfg)
     raise TtsError(f"Неизвестный TTS-провайдер: {provider!r}")
 
 
@@ -257,6 +260,39 @@ def _yandex_credentials():
     return api_key, folder_id
 
 
+def _aws_credentials():
+    env_file = _load_env_values()
+    access_key = os.environ.get("AWS_ACCESS_KEY_ID") or env_file.get("AWS_ACCESS_KEY_ID")
+    secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY") or env_file.get("AWS_SECRET_ACCESS_KEY")
+    session_token = os.environ.get("AWS_SESSION_TOKEN") or env_file.get("AWS_SESSION_TOKEN")
+    region = os.environ.get("AWS_REGION") or env_file.get("AWS_REGION")
+    return access_key, secret_key, session_token, region
+
+
+def _polly_client(cfg):
+    try:
+        import boto3
+    except Exception as e:
+        raise TtsError(f"boto3 не установлен для Amazon Polly: {e}") from e
+    access_key, secret_key, session_token, env_region = _aws_credentials()
+    region = cfg.get("tts_polly_region") or env_region or "eu-central-1"
+    kwargs = {"region_name": region}
+    if access_key and secret_key:
+        kwargs["aws_access_key_id"] = access_key
+        kwargs["aws_secret_access_key"] = secret_key
+        if session_token:
+            kwargs["aws_session_token"] = session_token
+    return boto3.client("polly", **kwargs)
+
+
+def _polly_rate(cfg):
+    try:
+        value = int(float(cfg.get("tts_polly_rate_percent", 100)))
+    except (TypeError, ValueError):
+        value = 100
+    return max(20, min(200, value))
+
+
 def speak_yandex(text, cfg):
     if not text.strip():
         raise TtsError("Нет текста для чтения.")
@@ -303,6 +339,50 @@ def speak_yandex(text, cfg):
         wav.setframerate(sample_rate)
         wav.writeframes(audio)
     winsound.PlaySound(str(out_path), winsound.SND_FILENAME)
+
+
+def speak_amazon_polly_maxim(text, cfg):
+    if not text.strip():
+        raise TtsError("Нет текста для чтения.")
+    client = _polly_client(cfg)
+    sample_rate = 16000
+    rate = _polly_rate(cfg)
+    ssml = f'<speak><prosody rate="{rate}%">{_escape_ssml_text(text)}</prosody></speak>'
+    try:
+        response = client.synthesize_speech(
+            Engine="standard",
+            LanguageCode="ru-RU",
+            VoiceId="Maxim",
+            OutputFormat="pcm",
+            SampleRate=str(sample_rate),
+            TextType="ssml",
+            Text=ssml,
+        )
+        audio = response["AudioStream"].read()
+    except Exception as e:
+        raise TtsError(f"Amazon Polly Maxim не смог озвучить текст: {e}") from e
+    if not audio:
+        raise TtsError("Amazon Polly Maxim вернул пустой ответ.")
+
+    out_dir = Path(RUNTIME_DIR) / "tts" / "out"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"amazon_polly_maxim_{uuid.uuid4().hex}.wav"
+    with wave.open(str(out_path), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes(audio)
+    winsound.PlaySound(str(out_path), winsound.SND_FILENAME)
+
+
+def _escape_ssml_text(text):
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&apos;")
+    )
 
 
 def speak_google_translate(text, cfg):
@@ -394,6 +474,9 @@ def providers_status():
     piper_exe = find_piper_exe()
     piper_model = find_piper_model()
     yandex_api_key, yandex_folder_id = _yandex_credentials()
+    aws_access_key, aws_secret_key, _aws_session_token, aws_region = _aws_credentials()
+    polly_has_boto3 = bool(importlib.util.find_spec("boto3"))
+    polly_ready = bool(polly_has_boto3 and aws_access_key and aws_secret_key)
     silero_ready = all(
         importlib.util.find_spec(name)
         for name in ("torch", "soundfile", "omegaconf")
@@ -419,5 +502,10 @@ def providers_status():
             "available": bool(importlib.util.find_spec("numpy") and importlib.util.find_spec("soundfile")),
             "detail": "прямой Google Translate TTS + soundfile" if importlib.util.find_spec("numpy") and importlib.util.find_spec("soundfile") else "numpy/soundfile не установлены",
             "label": provider_label("google_translate"),
+        },
+        "amazon_polly_maxim": {
+            "available": polly_ready,
+            "detail": f"boto3 + AWS keys; region {aws_region or 'config/default'}" if polly_ready else "нужны boto3, AWS_ACCESS_KEY_ID и AWS_SECRET_ACCESS_KEY в .env",
+            "label": provider_label("amazon_polly_maxim"),
         },
     }

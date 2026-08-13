@@ -62,7 +62,7 @@ DEFAULT_CONFIG = {
     "history_persist_count": 50,
 
     # Читалка текста. Windows SAPI удалён из проекта из-за непригодного качества.
-    "tts_provider": "yandex",      # piper | silero | yandex | google_translate
+    "tts_provider": "yandex",      # piper | silero | yandex | google_translate | amazon_polly_maxim
     "tts_piper_exe": "",
     "tts_piper_model": "",
     "tts_silero_model": "v5_ru",
@@ -74,6 +74,8 @@ DEFAULT_CONFIG = {
     "tts_google_lang": "ru",
     "tts_google_tld": "com",
     "tts_google_speed": 1.0,
+    "tts_polly_region": "eu-central-1",
+    "tts_polly_rate_percent": 100,
 
     "beep": True,
     "min_record_seconds": 0.4,    # короче — игнор (защита от случайных нажатий)
