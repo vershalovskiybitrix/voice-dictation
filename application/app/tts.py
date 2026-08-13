@@ -24,13 +24,11 @@ class TtsError(RuntimeError):
 
 PROVIDER_LABELS = {
     "piper": "Piper: локальная нейросетевая читалка",
-    "silero": "Silero: локальная русская модель",
     "yandex": "Yandex SpeechKit: облачная читалка",
-    "google_translate": "Google Translate: текущая веб-читалка",
+    "google_translate": "Google Translate",
     "amazon_polly_maxim": "Amazon Polly: Maxim",
 }
 
-SILERO_SPEAKERS = ["aidar", "baya", "kseniya", "eugene", "xenia"]
 # Current adapter uses SpeechKit API v1, so only v1-compatible ru-RU voices are shown.
 YANDEX_VOICES = {
     "alena": ["neutral", "good"],
@@ -42,7 +40,6 @@ YANDEX_VOICES = {
     "marina": ["neutral", "whisper", "friendly"],
     "madi_ru": [""],
 }
-_SILERO_MODEL_CACHE = {}
 
 
 def provider_label(provider):
@@ -63,8 +60,6 @@ def speak_text(text, cfg):
         provider = "yandex" if provider == "sapi" else "google_translate"
     if provider == "piper":
         return speak_piper(text, cfg)
-    if provider == "silero":
-        return speak_silero(text, cfg)
     if provider == "yandex":
         return speak_yandex(text, cfg)
     if provider == "google_translate":
@@ -156,81 +151,6 @@ def speak_piper(text, cfg):
         raise TtsError(completed.stderr.strip() or "Piper вернул ошибку.")
     if not out_path.exists() or out_path.stat().st_size == 0:
         raise TtsError("Piper не создал WAV-файл.")
-    winsound.PlaySound(str(out_path), winsound.SND_FILENAME)
-
-
-def _silero_cache_model_path(model_name):
-    torch_home = Path(RUNTIME_DIR) / "tts" / "silero" / "torch"
-    return (
-        torch_home
-        / "hub"
-        / "snakers4_silero-models_master"
-        / "src"
-        / "silero"
-        / "model"
-        / f"{model_name}.pt"
-    )
-
-
-def find_silero_model_file(cfg=None):
-    cfg = cfg or {}
-    model_name = cfg.get("tts_silero_model", "v5_ru")
-    path = _silero_cache_model_path(model_name)
-    return str(path) if path.exists() else None
-
-
-def _load_silero_model(model_name):
-    cached = _SILERO_MODEL_CACHE.get(model_name)
-    if cached is not None:
-        return cached
-    try:
-        import torch
-    except Exception as e:
-        raise TtsError(f"torch не установлен для Silero: {e}") from e
-    try:
-        torch_home = Path(RUNTIME_DIR) / "tts" / "silero" / "torch"
-        torch_home.mkdir(parents=True, exist_ok=True)
-        os.environ["TORCH_HOME"] = str(torch_home)
-        torch.hub.set_dir(str(torch_home / "hub"))
-        model, _example_text = torch.hub.load(
-            repo_or_dir="snakers4/silero-models",
-            model="silero_tts",
-            language="ru",
-            speaker=model_name,
-            trust_repo=True,
-        )
-    except Exception as e:
-        raise TtsError(f"Не удалось загрузить модель Silero {model_name}: {e}") from e
-    _SILERO_MODEL_CACHE[model_name] = model
-    return model
-
-
-def speak_silero(text, cfg):
-    if not text.strip():
-        raise TtsError("Нет текста для чтения.")
-    try:
-        import soundfile as sf
-    except Exception as e:
-        raise TtsError(f"soundfile не установлен для Silero: {e}") from e
-
-    model_name = cfg.get("tts_silero_model", "v5_ru")
-    speaker = cfg.get("tts_silero_speaker", "baya")
-    sample_rate = int(cfg.get("tts_silero_sample_rate", 48000))
-    if speaker not in SILERO_SPEAKERS:
-        raise TtsError(f"Голос Silero должен быть одним из: {', '.join(SILERO_SPEAKERS)}.")
-
-    model = _load_silero_model(model_name)
-    try:
-        audio = model.apply_tts(text=text, speaker=speaker, sample_rate=sample_rate)
-    except Exception as e:
-        raise TtsError(f"Silero не смог озвучить текст: {e}") from e
-
-    if hasattr(audio, "detach"):
-        audio = audio.detach().cpu().numpy()
-    out_dir = Path(RUNTIME_DIR) / "tts" / "out"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / f"silero_{uuid.uuid4().hex}.wav"
-    sf.write(str(out_path), audio, sample_rate)
     winsound.PlaySound(str(out_path), winsound.SND_FILENAME)
 
 
@@ -477,21 +397,11 @@ def providers_status():
     aws_access_key, aws_secret_key, _aws_session_token, aws_region = _aws_credentials()
     polly_has_boto3 = bool(importlib.util.find_spec("boto3"))
     polly_ready = bool(polly_has_boto3 and aws_access_key and aws_secret_key)
-    silero_ready = all(
-        importlib.util.find_spec(name)
-        for name in ("torch", "soundfile", "omegaconf")
-    )
-    silero_model = find_silero_model_file({"tts_silero_model": "v5_ru"})
     return {
         "piper": {
             "available": bool(piper_exe and piper_model),
             "detail": f"{piper_exe}; {piper_model}" if piper_exe and piper_model else "piper.exe или .onnx модель не найдены",
             "label": provider_label("piper"),
-        },
-        "silero": {
-            "available": bool(silero_ready and silero_model),
-            "detail": silero_model if silero_ready and silero_model else "torch/soundfile/omegaconf или v5_ru.pt не найдены",
-            "label": provider_label("silero"),
         },
         "yandex": {
             "available": bool(yandex_api_key and yandex_folder_id),
@@ -500,7 +410,7 @@ def providers_status():
         },
         "google_translate": {
             "available": bool(importlib.util.find_spec("numpy") and importlib.util.find_spec("soundfile")),
-            "detail": "прямой Google Translate TTS + soundfile" if importlib.util.find_spec("numpy") and importlib.util.find_spec("soundfile") else "numpy/soundfile не установлены",
+            "detail": "готово" if importlib.util.find_spec("numpy") and importlib.util.find_spec("soundfile") else "numpy/soundfile не установлены",
             "label": provider_label("google_translate"),
         },
         "amazon_polly_maxim": {

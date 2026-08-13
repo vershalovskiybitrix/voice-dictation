@@ -3,12 +3,12 @@
 ## Рабочие провайдеры
 
 - `piper`: локальный Piper в `runtime/tts/piper`. После фикса stdin текст передаётся в `piper.exe` как UTF-8.
-- `silero`: локальный русский Silero. PyTorch Hub cache и модель должны лежать в `runtime/tts/silero`, а не в профиле пользователя на диске C. `v5_ru` рассчитан на русский текст; английский надо отдавать другому провайдеру или отдельной EN-модели.
 - `yandex`: Yandex SpeechKit. Секреты читаются из `.env`; голоса и роли выбираются из списков.
+- `amazon_polly_maxim`: Amazon Polly, русский голос Maxim. Секреты читаются из `.env`.
+- `google_translate`: прямой Google Translate TTS. В текущем endpoint нет нормального выбора голоса, пола или preset; скорость меняется локальной постобработкой WAV.
 
 ## Тестовые / проблемные
 
-- `google_translate`: текущий прямой Google Translate TTS. В текущем endpoint нет нормального выбора голоса, пола или preset; скорость меняется локальной постобработкой WAV.
 - Старый SVOX/Google-робот: отдельный кандидат для исследования, не тот же провайдер, что `google_translate`.
 
 ## Yandex SpeechKit
@@ -29,8 +29,8 @@
 ```powershell
 D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py --status
 D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py --provider piper "Проверка Piper."
-D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py --provider silero "Проверка Silero."
 D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py --provider yandex "Проверка Yandex."
+D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py --provider amazon_polly_maxim "Проверка Maxim."
 ```
 
 ## Yandex `.env`
@@ -38,6 +38,9 @@ D:\Progs\VoiceService\runtime\.venv\Scripts\python.exe application\tts_test.py -
 ```text
 YANDEX_CLOUD_API_KEY
 YANDEX_CLOUD_FOLDER_ID
+AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY
+AWS_REGION
 ```
 
 Значения не хранить в Markdown и не коммитить.
