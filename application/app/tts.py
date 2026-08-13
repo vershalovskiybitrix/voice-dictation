@@ -5,6 +5,7 @@ import subprocess
 import sys
 import shutil
 import importlib.util
+import re
 import uuid
 import winsound
 import wave
@@ -55,6 +56,7 @@ def provider_value(label):
 
 
 def speak_text(text, cfg):
+    text = _prepare_tts_text(text)
     provider = cfg.get("tts_provider", "yandex")
     if provider == "sapi":
         provider = "yandex"
@@ -67,6 +69,15 @@ def speak_text(text, cfg):
     if provider == "google_old":
         return speak_google_old(text, cfg)
     raise TtsError(f"Неизвестный TTS-провайдер: {provider!r}")
+
+
+def _prepare_tts_text(text):
+    text = str(text or "").strip()
+    text = re.sub(r"([?!.,;:])\1{1,}", r"\1", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if not any(ch.isalnum() for ch in text):
+        raise TtsError("Нет текста для чтения.")
+    return text
 
 
 def speak_clipboard(cfg):

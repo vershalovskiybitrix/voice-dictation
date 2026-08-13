@@ -294,6 +294,21 @@ def test_imports():
     check("все модули импортированы", True)
 
 
+def test_tts_text_cleanup():
+    print("test: очистка текста перед TTS")
+    from app.tts import TtsError, _prepare_tts_text
+
+    def raises_tts_error(fn):
+        try:
+            fn()
+        except TtsError:
+            return True
+        return False
+
+    check("пунктуация без текста не читается", raises_tts_error(lambda: _prepare_tts_text("????????")))
+    check("повторная пунктуация схлопывается", _prepare_tts_text("Hello??? Stop!!!") == "Hello? Stop!")
+
+
 def test_model():
     print("test: загрузка модели + распознавание тишины и файла")
     import os, tempfile, wave
@@ -333,6 +348,7 @@ def main():
     test_tts_import()
     test_history()
     test_partial_text_cleanup()
+    test_tts_text_cleanup()
     test_config()
     if "--model" in sys.argv:
         test_model()
