@@ -145,7 +145,7 @@ class VoiceService:
         self.beep(False)
         # Сохраняем запись, чтобы при сбое распознавания её можно было переиграть из трея.
         save_recording(recordings_dir(), audio, SAMPLE_RATE, self.cfg["keep_recordings"])
-        threading.Thread(target=self._process, args=(audio,), daemon=True).start()
+        threading.Thread(target=self._process, args=(audio, False, mode), daemon=True).start()
 
     def _recording_stop_grace(self, mode):
         key = "toggle_stop_grace_seconds" if mode == "toggle" else "ptt_stop_grace_seconds"
@@ -207,13 +207,17 @@ class VoiceService:
             if audio.size < int(self.cfg["min_record_seconds"] * SAMPLE_RATE):
                 continue
             save_recording(recordings_dir(), audio, SAMPLE_RATE, self.cfg["keep_recordings"])
-            threading.Thread(target=self._process, args=(audio, True), daemon=True).start()
+            threading.Thread(target=self._process, args=(audio, True, "toggle"), daemon=True).start()
 
-    def _process(self, audio, partial=False):
+    def _process(self, audio, partial=False, source_mode=None):
         self.set_status("Transcribing" if not partial else "Transcribing chunk")
         try:
             with self._infer_lock:
-                text = self.transcriber.transcribe(self._pad_transcription_tail(audio), self.language)
+                text = self.transcriber.transcribe(
+                    self._pad_transcription_tail(audio),
+                    self.language,
+                    vad_filter=self._vad_filter_for_source(source_mode),
+                )
         except Exception as e:
             log(f"Ошибка распознавания: {e}")
             self.set_status("Idle")
@@ -247,6 +251,13 @@ class VoiceService:
             return audio
         padding = np.zeros(int(seconds * SAMPLE_RATE), dtype=np.float32)
         return np.concatenate((audio, padding))
+
+    def _vad_filter_for_source(self, source_mode):
+        if source_mode == "ptt":
+            return bool(self.cfg.get("ptt_vad_filter", False))
+        if source_mode == "toggle":
+            return bool(self.cfg.get("toggle_vad_filter", True))
+        return bool(self.cfg.get("file_vad_filter", True))
 
     # ------------------------------------------------------------------ #
     #  Распознавание аудиофайлов
@@ -363,7 +374,11 @@ class VoiceService:
         self.set_status(f"Файл: {name}")
         try:
             with self._infer_lock:
-                text = self.transcriber.transcribe(path, self.language)
+                text = self.transcriber.transcribe(
+                    path,
+                    self.language,
+                    vad_filter=self._vad_filter_for_source("file"),
+                )
         except Exception as e:
             log(f"Ошибка распознавания файла {name!r}: {e}")
             self._notify(f"Не удалось распознать: {name}")

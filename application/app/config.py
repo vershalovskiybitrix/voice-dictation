@@ -65,6 +65,9 @@ DEFAULT_CONFIG = {
     "tail_retranscribe_enabled": True,
     "tail_retranscribe_min_seconds": 35.0,
     "tail_retranscribe_seconds": 25.0,
+    "ptt_vad_filter": False,
+    "toggle_vad_filter": True,
+    "file_vad_filter": True,
     "history_persist_count": 50,
 
     # Читалка текста. Windows SAPI удалён из проекта из-за непригодного качества.

@@ -309,6 +309,16 @@ def test_transcription_tail_padding():
     check("хвост нулевой", np.max(np.abs(padded[audio.size:])) == 0.0)
 
 
+def test_vad_source_policy():
+    print("test: VAD policy по источнику записи")
+    from app.service import VoiceService
+    svc = VoiceService.__new__(VoiceService)
+    svc.cfg = {"ptt_vad_filter": False, "toggle_vad_filter": True, "file_vad_filter": True}
+    check("PTT распознаётся без VAD", svc._vad_filter_for_source("ptt") is False)
+    check("Scroll Lock остаётся с VAD", svc._vad_filter_for_source("toggle") is True)
+    check("Файлы остаются с VAD", svc._vad_filter_for_source("file") is True)
+
+
 def test_config():
     print("test: конфиг")
     cfg = load_config()
@@ -326,6 +336,10 @@ def test_config():
     check("tail_retranscribe_enabled есть", "tail_retranscribe_enabled" in cfg)
     check("tail_retranscribe_min_seconds есть", "tail_retranscribe_min_seconds" in cfg)
     check("tail_retranscribe_seconds есть", "tail_retranscribe_seconds" in cfg)
+    check("ptt_vad_filter есть", "ptt_vad_filter" in cfg)
+    check("toggle_vad_filter есть", "toggle_vad_filter" in cfg)
+    check("file_vad_filter есть", "file_vad_filter" in cfg)
+    check("PTT VAD выключен по умолчанию", cfg["ptt_vad_filter"] is False)
     check("tts_provider есть", "tts_provider" in cfg)
     check("tts_piper_exe есть", "tts_piper_exe" in cfg)
     check("tts_yandex_voice есть", "tts_yandex_voice" in cfg)
@@ -407,6 +421,7 @@ def main():
     test_history()
     test_partial_text_cleanup()
     test_transcription_tail_padding()
+    test_vad_source_policy()
     test_tts_text_cleanup()
     test_config()
     if "--model" in sys.argv:

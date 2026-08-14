@@ -86,20 +86,21 @@ class Transcriber:
         self.cfg = cfg
         self.blacklist = {s.strip().lower() for s in cfg["hallucination_blacklist"]}
 
-    def transcribe(self, audio, language):
+    def transcribe(self, audio, language, vad_filter=None):
         """Распознаёт аудио (numpy float32 16кГц или путь к файлу).
 
         Порог no_speech отдаём самой модели: свой грубый отсев сегментов выбрасывал куски
         длинной речи и пения (обрывал текст). Тишину отсекает vad_filter, мусорные фразы —
         hallucination_blacklist."""
-        text = self._transcribe_once(audio, language)
-        text = self._merge_tail_retranscription(text, audio, language)
+        vad_filter = self.cfg.get("vad_filter", True) if vad_filter is None else bool(vad_filter)
+        text = self._transcribe_once(audio, language, vad_filter)
+        text = self._merge_tail_retranscription(text, audio, language, vad_filter)
         if text.lower() in self.blacklist:
             log(f"Отброшено как галлюцинация: {text!r}")
             return ""
         return text
 
-    def _transcribe_once(self, audio, language):
+    def _transcribe_once(self, audio, language, vad_filter):
         lang = None if language in ("auto", "", None) else language
         segments, _info = self.model.transcribe(
             audio,
@@ -112,14 +113,14 @@ class Transcriber:
             compression_ratio_threshold=2.4,   # детектор «текст зациклился»
             repetition_penalty=1.1,            # мягко снижает шанс войти в петлю
             condition_on_previous_text=False,
-            vad_filter=True,
+            vad_filter=vad_filter,
             no_speech_threshold=self.cfg["no_speech_threshold"],
             initial_prompt=self.cfg["initial_prompt"] or None,
         )
         text = collapse_repeats("".join(seg.text for seg in segments).strip())
         return text
 
-    def _merge_tail_retranscription(self, text, audio, language):
+    def _merge_tail_retranscription(self, text, audio, language, vad_filter):
         if not self.cfg.get("tail_retranscribe_enabled", True):
             return text
         if not isinstance(audio, np.ndarray) or audio.size == 0:
@@ -133,7 +134,7 @@ class Transcriber:
         if tail_samples <= 0 or audio.size <= tail_samples:
             return text
         tail_audio = audio[-tail_samples:]
-        tail_text = self._transcribe_once(tail_audio, language)
+        tail_text = self._transcribe_once(tail_audio, language, vad_filter)
         merged = _merge_text_tail(text, tail_text)
         if merged != text:
             log(f"Хвост распознавания дополнен: {tail_text!r}")
