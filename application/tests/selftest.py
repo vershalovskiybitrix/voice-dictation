@@ -183,7 +183,7 @@ def test_tts_stop_suppresses_read_tap():
 
 def test_collapse_repeats():
     print("test: схлопывание зацикленных повторов")
-    from app.engine import collapse_repeats
+    from app.engine import _merge_text_tail, collapse_repeats
 
     # Реальные случаи пользователя
     junk1 = "ьные предметные действия " + "1." * 100 + " в под ко"
@@ -198,6 +198,9 @@ def test_collapse_repeats():
     ok = "Привет, это обычная фраза с многоточием... и продолжением."
     check("обычный текст не тронут", collapse_repeats(ok) == ok)
     check("пустая строка ок", collapse_repeats("") == "")
+    full = "сделай современно для вот этого магазина и несложно простой, но суперсти"
+    tail = "для вот этого магазина и не сложно простой но супер стил логотип."
+    check("хвостовой проход дописывает обрезанное слово", _merge_text_tail(full, tail).endswith("суперстил логотип."))
 
 
 def test_recordings_cache():
@@ -320,6 +323,9 @@ def test_config():
     check("ptt_stop_grace_seconds есть", "ptt_stop_grace_seconds" in cfg)
     check("toggle_stop_grace_seconds есть", "toggle_stop_grace_seconds" in cfg)
     check("transcription_tail_padding_seconds есть", "transcription_tail_padding_seconds" in cfg)
+    check("tail_retranscribe_enabled есть", "tail_retranscribe_enabled" in cfg)
+    check("tail_retranscribe_min_seconds есть", "tail_retranscribe_min_seconds" in cfg)
+    check("tail_retranscribe_seconds есть", "tail_retranscribe_seconds" in cfg)
     check("tts_provider есть", "tts_provider" in cfg)
     check("tts_piper_exe есть", "tts_piper_exe" in cfg)
     check("tts_yandex_voice есть", "tts_yandex_voice" in cfg)

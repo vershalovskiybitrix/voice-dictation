@@ -62,6 +62,9 @@ DEFAULT_CONFIG = {
     "ptt_stop_grace_seconds": 0.15,
     "toggle_stop_grace_seconds": 0.55,
     "transcription_tail_padding_seconds": 0.25,
+    "tail_retranscribe_enabled": True,
+    "tail_retranscribe_min_seconds": 35.0,
+    "tail_retranscribe_seconds": 25.0,
     "history_persist_count": 50,
 
     # Читалка текста. Windows SAPI удалён из проекта из-за непригодного качества.

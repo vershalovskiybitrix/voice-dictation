@@ -3,6 +3,8 @@
 import os
 import re
 
+import numpy as np
+
 from .util import log
 
 # Температуры для отката: при 0.0 распознаётся обычная речь, выше — только те сегменты,
@@ -90,6 +92,14 @@ class Transcriber:
         Порог no_speech отдаём самой модели: свой грубый отсев сегментов выбрасывал куски
         длинной речи и пения (обрывал текст). Тишину отсекает vad_filter, мусорные фразы —
         hallucination_blacklist."""
+        text = self._transcribe_once(audio, language)
+        text = self._merge_tail_retranscription(text, audio, language)
+        if text.lower() in self.blacklist:
+            log(f"Отброшено как галлюцинация: {text!r}")
+            return ""
+        return text
+
+    def _transcribe_once(self, audio, language):
         lang = None if language in ("auto", "", None) else language
         segments, _info = self.model.transcribe(
             audio,
@@ -107,7 +117,76 @@ class Transcriber:
             initial_prompt=self.cfg["initial_prompt"] or None,
         )
         text = collapse_repeats("".join(seg.text for seg in segments).strip())
-        if text.lower() in self.blacklist:
-            log(f"Отброшено как галлюцинация: {text!r}")
-            return ""
         return text
+
+    def _merge_tail_retranscription(self, text, audio, language):
+        if not self.cfg.get("tail_retranscribe_enabled", True):
+            return text
+        if not isinstance(audio, np.ndarray) or audio.size == 0:
+            return text
+        duration = audio.size / 16000.0
+        min_duration = float(self.cfg.get("tail_retranscribe_min_seconds", 35.0))
+        if duration < min_duration:
+            return text
+        tail_seconds = float(self.cfg.get("tail_retranscribe_seconds", 25.0))
+        tail_samples = int(tail_seconds * 16000)
+        if tail_samples <= 0 or audio.size <= tail_samples:
+            return text
+        tail_audio = audio[-tail_samples:]
+        tail_text = self._transcribe_once(tail_audio, language)
+        merged = _merge_text_tail(text, tail_text)
+        if merged != text:
+            log(f"Хвост распознавания дополнен: {tail_text!r}")
+        return merged
+
+
+def _merge_text_tail(text, tail_text):
+    text = (text or "").strip()
+    tail_text = (tail_text or "").strip()
+    if not text:
+        return tail_text
+    if not tail_text:
+        return text
+    text_norm = _overlap_norm(text)
+    tail_norm = _overlap_norm(tail_text)
+    best = 0
+    max_len = min(len(text_norm), len(tail_norm))
+    for size in range(max_len, 19, -1):
+        if text_norm[-size:] == tail_norm[:size]:
+            best = size
+            break
+    if best == 0:
+        return text
+    consumed = _chars_for_norm_prefix(tail_text, best)
+    mid_word = (
+        consumed > 0
+        and consumed < len(tail_text)
+        and _is_word_char(tail_text[consumed - 1])
+        and _is_word_char(tail_text[consumed])
+    )
+    suffix = tail_text[consumed:] if mid_word else tail_text[consumed:].lstrip(" ,.!?;:…")
+    if not suffix:
+        return text
+    if mid_word:
+        return f"{text}{suffix}"
+    if text[-1:] and text[-1] not in " \n":
+        return f"{text} {suffix}"
+    return f"{text}{suffix}"
+
+
+def _overlap_norm(value):
+    return re.sub(r"[^0-9a-zа-яё]+", "", value.lower())
+
+
+def _chars_for_norm_prefix(value, norm_count):
+    count = 0
+    for index, ch in enumerate(value):
+        if re.match(r"[0-9a-zа-яё]", ch.lower()):
+            count += 1
+            if count >= norm_count:
+                return index + 1
+    return len(value)
+
+
+def _is_word_char(value):
+    return bool(re.match(r"[0-9a-zа-яё]", value.lower()))
