@@ -133,6 +133,7 @@ class VoiceService:
             duration = time.time() - self._record_start
             if mode == "toggle":
                 self._stop_chunking()
+            self._recording_stop_grace(mode)
             audio = self.recorder.stop()
             if mode == "toggle":
                 audio = self._drain_chunk_buffer(audio)
@@ -145,6 +146,15 @@ class VoiceService:
         # Сохраняем запись, чтобы при сбое распознавания её можно было переиграть из трея.
         save_recording(recordings_dir(), audio, SAMPLE_RATE, self.cfg["keep_recordings"])
         threading.Thread(target=self._process, args=(audio,), daemon=True).start()
+
+    def _recording_stop_grace(self, mode):
+        key = "toggle_stop_grace_seconds" if mode == "toggle" else "ptt_stop_grace_seconds"
+        try:
+            delay = float(self.cfg.get(key, 0.0))
+        except (TypeError, ValueError):
+            delay = 0.0
+        if delay > 0:
+            time.sleep(delay)
 
     def _start_chunking(self):
         self._clear_chunk_buffer()
@@ -203,7 +213,7 @@ class VoiceService:
         self.set_status("Transcribing" if not partial else "Transcribing chunk")
         try:
             with self._infer_lock:
-                text = self.transcriber.transcribe(audio, self.language)
+                text = self.transcriber.transcribe(self._pad_transcription_tail(audio), self.language)
         except Exception as e:
             log(f"Ошибка распознавания: {e}")
             self.set_status("Idle")
@@ -227,6 +237,16 @@ class VoiceService:
         with self._lock:
             still_recording = self.recording
         self.set_status("Recording" if still_recording else "Idle")
+
+    def _pad_transcription_tail(self, audio):
+        try:
+            seconds = float(self.cfg.get("transcription_tail_padding_seconds", 0.0))
+        except (TypeError, ValueError):
+            seconds = 0.0
+        if seconds <= 0 or audio is None or audio.size == 0:
+            return audio
+        padding = np.zeros(int(seconds * SAMPLE_RATE), dtype=np.float32)
+        return np.concatenate((audio, padding))
 
     # ------------------------------------------------------------------ #
     #  Распознавание аудиофайлов

@@ -59,6 +59,9 @@ DEFAULT_CONFIG = {
     "chunk_insert_partials": True,
     "chunk_insert_separator": " ",
     "chunk_strip_trailing_ellipsis": True,
+    "ptt_stop_grace_seconds": 0.15,
+    "toggle_stop_grace_seconds": 0.55,
+    "transcription_tail_padding_seconds": 0.25,
     "history_persist_count": 50,
 
     # Читалка текста. Windows SAPI удалён из проекта из-за непригодного качества.

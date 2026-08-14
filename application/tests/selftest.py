@@ -292,6 +292,20 @@ def test_partial_text_cleanup():
     check("обычную точку не трогает", svc._prepare_partial_text("Конец.") == "Конец.")
 
 
+def test_transcription_tail_padding():
+    print("test: padding тишины в конце аудио перед распознаванием")
+    import numpy as np
+    from app.config import SAMPLE_RATE
+    from app.service import VoiceService
+    svc = VoiceService.__new__(VoiceService)
+    svc.cfg = {"transcription_tail_padding_seconds": 0.25}
+    audio = np.ones(SAMPLE_RATE, dtype=np.float32)
+    padded = svc._pad_transcription_tail(audio)
+    check("добавляет хвост тишины", padded.size == audio.size + int(0.25 * SAMPLE_RATE))
+    check("исходная речь не меняется", np.allclose(padded[: audio.size], audio))
+    check("хвост нулевой", np.max(np.abs(padded[audio.size:])) == 0.0)
+
+
 def test_config():
     print("test: конфиг")
     cfg = load_config()
@@ -303,6 +317,9 @@ def test_config():
     check("chunking включен по умолчанию", cfg["toggle_chunking_enabled"] is True)
     check("chunk partial insert включен по умолчанию", cfg["chunk_insert_partials"] is True)
     check("chunk separator = пробел", cfg["chunk_insert_separator"] == " ")
+    check("ptt_stop_grace_seconds есть", "ptt_stop_grace_seconds" in cfg)
+    check("toggle_stop_grace_seconds есть", "toggle_stop_grace_seconds" in cfg)
+    check("transcription_tail_padding_seconds есть", "transcription_tail_padding_seconds" in cfg)
     check("tts_provider есть", "tts_provider" in cfg)
     check("tts_piper_exe есть", "tts_piper_exe" in cfg)
     check("tts_yandex_voice есть", "tts_yandex_voice" in cfg)
@@ -383,6 +400,7 @@ def main():
     test_tts_import()
     test_history()
     test_partial_text_cleanup()
+    test_transcription_tail_padding()
     test_tts_text_cleanup()
     test_config()
     if "--model" in sys.argv:
